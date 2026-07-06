@@ -1,0 +1,27 @@
+.env
+__pycache__/
+*.pyc
+*.pyo
+
+# Ambiente virtual
+venv/
+.venv/
+env/
+
+# Dados reais e saídas geradas — nunca devem ir para o repositório
+data/input/
+data/output/
+referencias.xlsx
+samples/
+
+# Arquivos de lock do Excel (criados quando o arquivo está aberto)
+~$*.xlsx
+
+# Configuração local de ferramentas
+.claude/
+.vscode/
+.idea/
+
+# SO
+.DS_Store
+Thumbs.db
