@@ -70,7 +70,6 @@ RENOMEAR_COLUNAS = {
     "salario_base":       "Salário Base (R$)",
     "dias_trabalhados":   "Dias Trabalhados",
     "elegivel":           "Elegível",
-    "motivo_inelegivel":  "Motivo Inelegível",
     "premio_rv":          "Prêmio RV (R$)",
     "rv_base":            "RV Bruta (antes proporcional) (R$)",
     "salario_total":      "Salário Total (R$)",
@@ -90,7 +89,7 @@ RENOMEAR_COLUNAS = {
 
 COLUNAS_ORDEM = [
     "matricula", "nome", "cargo", "grupo", "unidade", "regional",
-    "salario_base", "dias_trabalhados", "elegivel", "motivo_inelegivel",
+    "salario_base", "dias_trabalhados", "elegivel",
     "premio_rv", "rv_base", "salario_total",
     "valor_dma", "pct_dma",
     "valor_nps", "pct_nps",

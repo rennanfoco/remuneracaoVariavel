@@ -33,36 +33,46 @@ def _to_float(val) -> float | None:
 
 def _parse_regras(xls: pd.ExcelFile) -> dict:
     """
-    Lê a aba Regras_Calculo e retorna:
+    Lê a aba Regras_Calculo em formato LONGO — uma linha por faixa, não uma
+    coluna por faixa — o que permite qualquer quantidade de faixas por
+    indicador (só adicionar mais linhas, sem alterar código).
+
+    Retorna:
       REGRAS[grupo][indicador] = {
-          faixa1_min, faixa1_max, faixa2_min, faixa2_max,  # None quando não aplicável
-          faixa1_pct, faixa2_pct,                           # decimal (0.15 = 15%)
-          direcao,                                           # "maior" | "menor"
-          chave_meta,                                        # str | None
+          "direcao":    "maior" | "menor",
+          "chave_meta": str | None,   # se definido, min/max vêm de METAS_MENSAIS
+          "faixas": [
+              {"faixa": int, "min": float|None, "max": float|None, "pct": float},
+              ...  # uma entrada por faixa, em qualquer ordem
+          ],
       }
-    Linhas com valores não numéricos nos campos de faixa são ignoradas (ex: linhas de
-    instrução do template).
+    Linhas sem grupo/indicador/faixa/pct válidos são ignoradas (instrução do template).
     """
     df = xls.parse("Regras_Calculo")
     result: dict = {}
     for _, row in df.iterrows():
         # minúsculo para casar com grupo_calculo (Cargos) e GRUPOS_MODELO_*,
         # que também são sempre minúsculos — evita bug de "Mecanico" x "mecanico".
-        grupo     = str(row["grupo"]).strip().lower()
-        indicador = str(row["indicador"]).strip().lower()
-        entry: dict = {}
-        for col in ("faixa1_min", "faixa1_max", "faixa2_min", "faixa2_max"):
-            entry[col] = _to_float(row[col]) if col in row.index else None
-        pct1 = _to_float(row.get("faixa1_pct"))
-        pct2 = _to_float(row.get("faixa2_pct"))
-        if pct1 is None and pct2 is None:
-            continue  # linha de instrução — ignora
-        entry["faixa1_pct"] = pct1 if pct1 is not None else 0.0
-        entry["faixa2_pct"] = pct2 if pct2 is not None else 0.0
-        entry["direcao"]    = str(row["direcao"]).strip() if "direcao" in row.index and pd.notna(row["direcao"]) else "maior"
-        chave = row.get("chave_meta")
-        entry["chave_meta"] = str(chave).strip() if chave is not None and pd.notna(chave) else None
-        result.setdefault(grupo, {})[indicador] = entry
+        grupo     = str(row.get("grupo", "")).strip().lower()
+        indicador = str(row.get("indicador", "")).strip().lower()
+        faixa_num = _to_float(row.get("faixa"))
+        pct       = _to_float(row.get("pct"))
+        if not grupo or grupo == "nan" or not indicador or indicador == "nan" or faixa_num is None or pct is None:
+            continue  # linha de instrução ou incompleta — ignora
+        faixa_num = int(faixa_num)
+
+        chave_bruta = row.get("chave_meta")
+        indicador_entry = result.setdefault(grupo, {}).setdefault(indicador, {
+            "direcao":    str(row.get("direcao")).strip().lower() if pd.notna(row.get("direcao")) else "maior",
+            "chave_meta": str(chave_bruta).strip() if pd.notna(chave_bruta) else None,
+            "faixas":     [],
+        })
+        indicador_entry["faixas"].append({
+            "faixa": faixa_num,
+            "min":   _to_float(row.get("valor_min")),
+            "max":   _to_float(row.get("valor_max")),
+            "pct":   pct,
+        })
     return result
 
 
@@ -91,19 +101,29 @@ def _parse_tetos(xls: pd.ExcelFile) -> dict:
 
 
 def _parse_metas(xls: pd.ExcelFile) -> dict:
+    """
+    Lê a aba Metas_Mensais em formato LONGO — uma linha por faixa —, mesma
+    lógica de Regras_Calculo. Usada para indicadores cujo limite varia por mês
+    (ex: NPS, NONREV) via chave_meta.
+
+    Retorna:
+      METAS_MENSAIS[mes][chave] = [
+          {"faixa": int, "min": float|None, "max": float|None}, ...
+      ]
+    """
     df = xls.parse("Metas_Mensais")
-    df["mes"] = df["mes"].astype(str).str.strip()
     result = {}
     for _, row in df.iterrows():
-        mes   = str(row["mes"]).strip()
-        chave = str(row["chave"]).strip()
-        entry = {}
-        for col in ("faixa1_min", "faixa1_max", "faixa2_min", "faixa2_max"):
-            v = _to_float(row[col]) if col in row.index else None
-            if v is not None:
-                entry[col] = v
-        if entry:  # ignora linhas sem nenhum valor numérico (instrução ou vazia)
-            result.setdefault(mes, {})[chave] = entry
+        mes       = str(row.get("mes", "")).strip()
+        chave     = str(row.get("chave", "")).strip()
+        faixa_num = _to_float(row.get("faixa"))
+        if not mes or mes == "nan" or not chave or chave == "nan" or faixa_num is None:
+            continue  # linha de instrução, vazia ou incompleta — ignora
+        result.setdefault(mes, {}).setdefault(chave, []).append({
+            "faixa": int(faixa_num),
+            "min":   _to_float(row.get("valor_min")),
+            "max":   _to_float(row.get("valor_max")),
+        })
     return result
 
 

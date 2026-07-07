@@ -59,6 +59,8 @@ Abas do arquivo:
 | `Metas_Mensais` | Metas de NPS e NONREV, atualizadas mês a mês |
 | `TOTVS` | Código do evento de RV na folha, código da coligada e parâmetros técnicos |
 
+`Regras_Calculo` e `Metas_Mensais` usam formato **longo**: uma linha por faixa (coluna `faixa` com o número — maior número = melhor faixa), em vez de uma coluna por faixa. Isso permite qualquer quantidade de faixas por indicador: para adicionar uma faixa 3, basta adicionar uma linha na planilha, sem alterar código.
+
 O sistema valida essa planilha no carregamento: se um grupo tiver regras sem modelo de cálculo definido, ou se faltar meta para a competência rodada, o processamento é interrompido com uma mensagem indicando o que precisa ser corrigido.
 
 ## Uso

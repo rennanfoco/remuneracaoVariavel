@@ -35,62 +35,90 @@ def main():
 
     # ------------------------------------------------------------------
     # Regras_Calculo
-    # Relaciona cada grupo de cargo com seus indicadores, faixas e pesos.
+    # Relaciona cada grupo de cargo com seus indicadores e faixas.
+    # Formato LONGO: uma linha por FAIXA, não uma coluna por faixa — para
+    # adicionar uma faixa3 (ou mais), basta adicionar mais linhas, sem
+    # alterar nenhum código.
     #
     # Colunas:
-    #   grupo        — nome interno do grupo (atendente, lider_frota, etc.)
+    #   grupo        — nome interno do grupo (atendente, lider_frota, etc.), sempre minúsculo
     #   indicador    — nome da métrica (dma, nps, faturamento, preventiva, nonrev, bate_patio)
-    #   faixa1_min   — valor mínimo para atingir faixa 1 (deixar em branco se definido em Metas_Mensais)
-    #   faixa1_max   — valor máximo (exclusivo) da faixa 1
-    #   faixa2_min   — valor mínimo para atingir faixa 2 (direcao=maior)
-    #   faixa2_max   — valor máximo para atingir faixa 2 (direcao=menor, ex: NONREV)
-    #   faixa1_pct   — % do salário/teto creditado na faixa 1  (ex: 0,15 = 15%)
-    #   faixa2_pct   — % do salário/teto creditado na faixa 2
-    #   direcao      — "maior" (maior é melhor) ou "menor" (menor é melhor, ex: NONREV)
-    #   chave_meta   — chave em Metas_Mensais para limites variáveis por mês; deixar em branco para fixos
+    #   faixa        — número da faixa (1, 2, 3, ...). Número maior = melhor faixa.
+    #   valor_min    — valor mínimo da faixa (deixar em branco se definido em Metas_Mensais,
+    #                  ou se essa faixa for a mais alta em direcao=maior)
+    #   valor_max    — valor máximo (exclusivo) da faixa (deixar em branco se essa faixa for
+    #                  a mais alta em direcao=maior, ou a mais baixa em direcao=menor)
+    #   pct          — % do salário/teto creditado nessa faixa (ex: 0,15 = 15%)
+    #   direcao      — "maior" (maior é melhor) ou "menor" (menor é melhor, ex: NONREV) —
+    #                  repetir em todas as linhas do mesmo grupo+indicador
+    #   chave_meta   — chave em Metas_Mensais para limites variáveis por mês; deixar em
+    #                  branco para limites fixos — repetir em todas as linhas
     #
     # Obs sobre faturamento: thresholds em % de atingimento (100 = meta exata, 105 = 5% acima da meta).
     # ------------------------------------------------------------------
     ws = wb.create_sheet("Regras_Calculo")
     _escrever(ws,
-        ["grupo", "indicador",
-         "faixa1_min", "faixa1_max", "faixa2_min", "faixa2_max",
-         "faixa1_pct", "faixa2_pct",
-         "direcao", "chave_meta"],
+        ["grupo", "indicador", "faixa", "valor_min", "valor_max", "pct", "direcao", "chave_meta"],
         [
             # ── Modelo % do Salário Base ──────────────────────────────
             # Atendente: DMA e Faturamento individuais; NPS da unidade
-            ("atendente",       "dma",         38,    40,    40,    None,  0.15, 0.45, "maior", None),
-            ("atendente",       "nps",          74,    77,    77,    None,  0.05, 0.10, "maior", None),
-            ("atendente",       "faturamento",  100,   105,   105,   None,  0.15, 0.45, "maior", None),
+            ("atendente",       "dma",         1, 38,   40,   0.15, "maior", None),
+            ("atendente",       "dma",         2, 40,   None, 0.45, "maior", None),
+            ("atendente",       "nps",         1, 74,   77,   0.05, "maior", None),
+            ("atendente",       "nps",         2, 77,   None, 0.10, "maior", None),
+            ("atendente",       "faturamento", 1, 100,  105,  0.15, "maior", None),
+            ("atendente",       "faturamento", 2, 105,  None, 0.45, "maior", None),
             # Atendente Lider: todos os indicadores da unidade
-            ("atendente_lider", "dma",          38,    40,    40,    None,  0.15, 0.45, "maior", None),
-            ("atendente_lider", "nps",          74,    77,    77,    None,  0.05, 0.10, "maior", None),
-            ("atendente_lider", "faturamento",  100,   105,   105,   None,  0.15, 0.45, "maior", None),
+            ("atendente_lider", "dma",         1, 38,   40,   0.15, "maior", None),
+            ("atendente_lider", "dma",         2, 40,   None, 0.45, "maior", None),
+            ("atendente_lider", "nps",         1, 74,   77,   0.05, "maior", None),
+            ("atendente_lider", "nps",         2, 77,   None, 0.10, "maior", None),
+            ("atendente_lider", "faturamento", 1, 100,  105,  0.15, "maior", None),
+            ("atendente_lider", "faturamento", 2, 105,  None, 0.45, "maior", None),
             # Gestor: todos os indicadores da unidade
-            ("gestor",          "dma",          38,    40,    40,    None,  0.15, 0.45, "maior", None),
-            ("gestor",          "nps",          74,    77,    77,    None,  0.05, 0.10, "maior", None),
-            ("gestor",          "faturamento",  100,   105,   105,   None,  0.15, 0.45, "maior", None),
+            ("gestor",          "dma",         1, 38,   40,   0.15, "maior", None),
+            ("gestor",          "dma",         2, 40,   None, 0.45, "maior", None),
+            ("gestor",          "nps",         1, 74,   77,   0.05, "maior", None),
+            ("gestor",          "nps",         2, 77,   None, 0.10, "maior", None),
+            ("gestor",          "faturamento", 1, 100,  105,  0.15, "maior", None),
+            ("gestor",          "faturamento", 2, 105,  None, 0.45, "maior", None),
             # Regional: consolidado das unidades da regional
-            ("regional",        "dma",          38,    40,    40,    None,  0.15, 0.45, "maior", None),
-            ("regional",        "nps",          74,    77,    77,    None,  0.05, 0.10, "maior", None),
-            ("regional",        "faturamento",  100,   105,   105,   None,  0.15, 0.45, "maior", None),
+            ("regional",        "dma",         1, 38,   40,   0.15, "maior", None),
+            ("regional",        "dma",         2, 40,   None, 0.45, "maior", None),
+            ("regional",        "nps",         1, 74,   77,   0.05, "maior", None),
+            ("regional",        "nps",         2, 77,   None, 0.10, "maior", None),
+            ("regional",        "faturamento", 1, 100,  105,  0.15, "maior", None),
+            ("regional",        "faturamento", 2, 105,  None, 0.45, "maior", None),
 
             # ── Modelo Teto Fixo ──────────────────────────────────────
             # Lider Frota: NPS (meta mensal), Preventiva (fixo), NONREV (meta mensal)
-            ("lider_frota",     "nps",          None,  None,  None,  None,  0.20, 0.40, "maior", "nps_lider_frota"),
-            ("lider_frota",     "preventiva",   97,    99,    99,    None,  0.15, 0.30, "maior", None),
-            ("lider_frota",     "nonrev",       None,  None,  None,  None,  0.15, 0.30, "menor", "nonrev"),
+            ("lider_frota",     "nps",         1, None, None, 0.20, "maior", "nps_lider_frota"),
+            ("lider_frota",     "nps",         2, None, None, 0.40, "maior", "nps_lider_frota"),
+            ("lider_frota",     "preventiva",  1, 97,   99,   0.15, "maior", None),
+            ("lider_frota",     "preventiva",  2, 99,   None, 0.30, "maior", None),
+            ("lider_frota",     "nonrev",      1, None, None, 0.15, "menor", "nonrev"),
+            ("lider_frota",     "nonrev",      2, None, None, 0.30, "menor", "nonrev"),
             # Lider Patio: NPS (meta mensal), NONREV (meta mensal), Bate Patio (fixo)
-            ("lider_patio",     "nps",          None,  None,  None,  None,  0.20, 0.40, "maior", "nps_lider_patio"),
-            ("lider_patio",     "nonrev",       None,  None,  None,  None,  0.15, 0.30, "menor", "nonrev"),
-            ("lider_patio",     "bate_patio",   None,  None,  100,   None,  0.00, 0.30, "maior", None),
+            ("lider_patio",     "nps",         1, None, None, 0.20, "maior", "nps_lider_patio"),
+            ("lider_patio",     "nps",         2, None, None, 0.40, "maior", "nps_lider_patio"),
+            ("lider_patio",     "nonrev",      1, None, None, 0.15, "menor", "nonrev"),
+            ("lider_patio",     "nonrev",      2, None, None, 0.30, "menor", "nonrev"),
+            ("lider_patio",     "bate_patio",  2, 100,  None, 0.30, "maior", None),
             # Operador Frota: NPS (meta mensal), Preventiva (fixo), NONREV (meta mensal)
-            ("operador_frota",  "nps",          None,  None,  None,  None,  0.20, 0.40, "maior", "nps_operador_frota"),
-            ("operador_frota",  "preventiva",   97,    99,    99,    None,  0.15, 0.30, "maior", None),
-            ("operador_frota",  "nonrev",       None,  None,  None,  None,  0.15, 0.30, "menor", "nonrev"),
+            ("operador_frota",  "nps",         1, None, None, 0.20, "maior", "nps_operador_frota"),
+            ("operador_frota",  "nps",         2, None, None, 0.40, "maior", "nps_operador_frota"),
+            ("operador_frota",  "preventiva",  1, 97,   99,   0.15, "maior", None),
+            ("operador_frota",  "preventiva",  2, 99,   None, 0.30, "maior", None),
+            ("operador_frota",  "nonrev",      1, None, None, 0.15, "menor", "nonrev"),
+            ("operador_frota",  "nonrev",      2, None, None, 0.30, "menor", "nonrev"),
             # Outros Cargos: apenas NPS (meta mensal)
-            ("outros",          "nps",          None,  None,  None,  None,  0.50, 1.00, "maior", "nps_outros"),
+            ("outros",          "nps",         1, None, None, 0.50, "maior", "nps_outros"),
+            ("outros",          "nps",         2, None, None, 1.00, "maior", "nps_outros"),
+            # Mecanico: Preventiva (fixo) e NONREV (meta mensal) — modelo percentual (salário)
+            ("mecanico",        "preventiva",  1, 96,   99,   0.15, "maior", None),
+            ("mecanico",        "preventiva",  2, 99,   None, 0.25, "maior", None),
+            ("mecanico",        "nonrev",      1, None, None, 0.15, "menor", "nonrev"),
+            ("mecanico",        "nonrev",      2, None, None, 0.25, "menor", "nonrev"),
         ]
     )
 
@@ -255,44 +283,71 @@ def main():
 
     # ------------------------------------------------------------------
     # Metas_Mensais
-    # NPS e NONREV variam a cada mês. Adicione uma linha por mês/chave.
-    # NPS   → faixa1_min, faixa1_max, faixa2_min  (maior é melhor)
-    # NONREV → faixa1_min, faixa1_max, faixa2_max  (menor é melhor)
+    # NPS e NONREV variam a cada mês. Formato LONGO: uma linha por faixa —
+    # mesma lógica de Regras_Calculo. Adicione um bloco de linhas por mês/chave;
+    # para uma faixa3, basta adicionar mais uma linha por chave.
+    # NPS    → faixa mais alta sem valor_max (maior é melhor)
+    # NONREV → faixa mais alta sem valor_min (menor é melhor)
     # ------------------------------------------------------------------
     ws = wb.create_sheet("Metas_Mensais")
     _escrever(ws,
-        ["mes", "chave", "faixa1_min", "faixa1_max", "faixa2_min", "faixa2_max"],
+        ["mes", "chave", "faixa", "valor_min", "valor_max"],
         [
             # fev/26 ──────────────────────────────────────────────────
-            ("2026-02", "nps_lider_frota",    75.0, 77.0, 77.0, None),
-            ("2026-02", "nps_lider_patio",    75.0, 77.0, 77.0, None),
-            ("2026-02", "nps_operador_frota", 75.0, 77.0, 77.0, None),
-            ("2026-02", "nps_outros",         75.0, 77.0, 77.0, None),
-            ("2026-02", "nonrev",             2.61, 3.50, None, 2.60),
+            ("2026-02", "nps_lider_frota",    1, 75.0, 77.0),
+            ("2026-02", "nps_lider_frota",    2, 77.0, None),
+            ("2026-02", "nps_lider_patio",    1, 75.0, 77.0),
+            ("2026-02", "nps_lider_patio",    2, 77.0, None),
+            ("2026-02", "nps_operador_frota", 1, 75.0, 77.0),
+            ("2026-02", "nps_operador_frota", 2, 77.0, None),
+            ("2026-02", "nps_outros",         1, 75.0, 77.0),
+            ("2026-02", "nps_outros",         2, 77.0, None),
+            ("2026-02", "nonrev",             1, 2.61, 3.50),
+            ("2026-02", "nonrev",             2, None, 2.60),
             # mar/26 ──────────────────────────────────────────────────
-            ("2026-03", "nps_lider_frota",    75.0, 77.0, 77.0, None),
-            ("2026-03", "nps_lider_patio",    76.0, 78.0, 78.0, None),
-            ("2026-03", "nps_operador_frota", 76.0, 78.0, 78.0, None),
-            ("2026-03", "nps_outros",         76.0, 78.0, 78.0, None),
-            ("2026-03", "nonrev",             2.61, 3.50, None, 2.60),
+            ("2026-03", "nps_lider_frota",    1, 75.0, 77.0),
+            ("2026-03", "nps_lider_frota",    2, 77.0, None),
+            ("2026-03", "nps_lider_patio",    1, 76.0, 78.0),
+            ("2026-03", "nps_lider_patio",    2, 78.0, None),
+            ("2026-03", "nps_operador_frota", 1, 76.0, 78.0),
+            ("2026-03", "nps_operador_frota", 2, 78.0, None),
+            ("2026-03", "nps_outros",         1, 76.0, 78.0),
+            ("2026-03", "nps_outros",         2, 78.0, None),
+            ("2026-03", "nonrev",             1, 2.61, 3.50),
+            ("2026-03", "nonrev",             2, None, 2.60),
             # abr/26 ──────────────────────────────────────────────────
-            ("2026-04", "nps_lider_frota",    76.0, 78.0, 78.0, None),
-            ("2026-04", "nps_lider_patio",    76.0, 78.0, 78.0, None),
-            ("2026-04", "nps_operador_frota", 76.0, 78.0, 78.0, None),
-            ("2026-04", "nps_outros",         76.0, 78.0, 78.0, None),
-            ("2026-04", "nonrev",             2.51, 3.50, None, 2.50),
+            ("2026-04", "nps_lider_frota",    1, 76.0, 78.0),
+            ("2026-04", "nps_lider_frota",    2, 78.0, None),
+            ("2026-04", "nps_lider_patio",    1, 76.0, 78.0),
+            ("2026-04", "nps_lider_patio",    2, 78.0, None),
+            ("2026-04", "nps_operador_frota", 1, 76.0, 78.0),
+            ("2026-04", "nps_operador_frota", 2, 78.0, None),
+            ("2026-04", "nps_outros",         1, 76.0, 78.0),
+            ("2026-04", "nps_outros",         2, 78.0, None),
+            ("2026-04", "nonrev",             1, 2.51, 3.50),
+            ("2026-04", "nonrev",             2, None, 2.50),
             # mai/26 ──────────────────────────────────────────────────
-            ("2026-05", "nps_lider_frota",    77.0, 79.0, 79.0, None),
-            ("2026-05", "nps_lider_patio",    77.0, 79.0, 79.0, None),
-            ("2026-05", "nps_operador_frota", 77.0, 79.0, 79.0, None),
-            ("2026-05", "nps_outros",         77.0, 79.0, 79.0, None),
-            ("2026-05", "nonrev",             2.51, 3.50, None, 2.50),
+            ("2026-05", "nps_lider_frota",    1, 77.0, 79.0),
+            ("2026-05", "nps_lider_frota",    2, 79.0, None),
+            ("2026-05", "nps_lider_patio",    1, 77.0, 79.0),
+            ("2026-05", "nps_lider_patio",    2, 79.0, None),
+            ("2026-05", "nps_operador_frota", 1, 77.0, 79.0),
+            ("2026-05", "nps_operador_frota", 2, 79.0, None),
+            ("2026-05", "nps_outros",         1, 77.0, 79.0),
+            ("2026-05", "nps_outros",         2, 79.0, None),
+            ("2026-05", "nonrev",             1, 2.51, 3.50),
+            ("2026-05", "nonrev",             2, None, 2.50),
             # jun/26 ──────────────────────────────────────────────────
-            ("2026-06", "nps_lider_frota",    78.0, 80.0, 80.0, None),
-            ("2026-06", "nps_lider_patio",    77.0, 79.0, 79.0, None),
-            ("2026-06", "nps_operador_frota", 77.0, 79.0, 79.0, None),
-            ("2026-06", "nps_outros",         77.0, 79.0, 79.0, None),
-            ("2026-06", "nonrev",             2.51, 3.50, None, 2.50),
+            ("2026-06", "nps_lider_frota",    1, 78.0, 80.0),
+            ("2026-06", "nps_lider_frota",    2, 80.0, None),
+            ("2026-06", "nps_lider_patio",    1, 77.0, 79.0),
+            ("2026-06", "nps_lider_patio",    2, 79.0, None),
+            ("2026-06", "nps_operador_frota", 1, 77.0, 79.0),
+            ("2026-06", "nps_operador_frota", 2, 79.0, None),
+            ("2026-06", "nps_outros",         1, 77.0, 79.0),
+            ("2026-06", "nps_outros",         2, 79.0, None),
+            ("2026-06", "nonrev",             1, 2.51, 3.50),
+            ("2026-06", "nonrev",             2, None, 2.50),
         ]
     )
 
