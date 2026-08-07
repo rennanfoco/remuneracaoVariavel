@@ -11,6 +11,8 @@ import sys
 import requests
 from dotenv import load_dotenv
 
+from config import TOTVS_COD_COLIGADA
+
 load_dotenv()
 
 BASE_URL  = os.getenv("TOTVS_RM_BASE_URL", "").rstrip("/")
@@ -30,7 +32,7 @@ def main():
         print("[ERRO] Variáveis de ambiente não carregadas. Verifique o .env.")
         sys.exit(1)
 
-    url = f"{BASE_URL}/api/framework/v1/consultaSQLServer/RealizaConsulta/API.04/1/P/"
+    url = f"{BASE_URL}/api/framework/v1/consultaSQLServer/RealizaConsulta/API.04/{TOTVS_COD_COLIGADA}/P/"
     params = {"parameters": f"MES={args.mes};ANO={args.ano}"}
 
     print(f"URL   : {url}")

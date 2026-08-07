@@ -53,8 +53,12 @@ def _avaliar_faixa(valor: float, regra: dict, competencia: str) -> tuple[int, fl
             if f_max is not None and valor <= f_max and (f_min is None or valor >= f_min):
                 return f["faixa"], f["pct"]
         else:
-            # quanto maior o valor, melhor (padrão)
-            if f_min is not None and valor >= f_min and (f_max is None or valor < f_max):
+            # quanto maior o valor, melhor (padrão) — limites min e max são
+            # ambos INCLUSIVOS (intervalo fechado [min, max]), igual à direção
+            # "menor". Não há risco de sobreposição indevida entre faixas
+            # adjacentes: a faixa mais alta é sempre avaliada primeiro e vence
+            # em caso de empate exato na fronteira (ex: faixa1_max == faixa2_min).
+            if f_min is not None and valor >= f_min and (f_max is None or valor <= f_max):
                 return f["faixa"], f["pct"]
 
     return 0, 0.0
