@@ -342,7 +342,7 @@ def _calcular_linha(row: pd.Series, grupo: str, competencia: str) -> dict:
             "bate_patio": row.get("bate_patio_pct", 0.0),
         }
 
-    res = calculadora.calcular(grupo, base_valor, indicadores, competencia)
+    res = calculadora.calcular(grupo, base_valor, indicadores, competencia, unidade=row["unidade"])
     resultado["rv_base"] = res["rv_base"]
     for ind, det in res["detalhes"].items():
         resultado[f"valor_{ind}"] = det["valor"]

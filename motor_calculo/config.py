@@ -45,7 +45,7 @@ def _parse_regras(xls: pd.ExcelFile) -> dict:
     indicador (só adicionar mais linhas, sem alterar código).
 
     Retorna:
-      REGRAS[grupo][indicador] = {
+      REGRAS[grupo][indicador][unidade] = {
           "direcao":    "maior" | "menor",
           "chave_meta": str | None,   # se definido, min/max vêm de METAS_MENSAIS
           "depende_indicador": str | None,  # nome de outro indicador do mesmo
@@ -59,6 +59,12 @@ def _parse_regras(xls: pd.ExcelFile) -> dict:
               ...  # uma entrada por faixa, em qualquer ordem
           ],
       }
+    `unidade` é None para a regra padrão (nacional) — a mesma coisa de
+    sempre — ou o código de uma loja específica, quando essa loja tem uma
+    regra própria que sobrescreve a padrão só pra quem trabalha lá (ver
+    coluna opcional `unidade` da planilha; rv/calculators/calculadora.py
+    usa a regra da loja do colaborador se existir, senão cai na padrão).
+
     Linhas sem grupo/indicador/faixa/pct válidos são ignoradas (instrução do template).
     """
     df = xls.parse("Regras_Calculo")
@@ -76,7 +82,11 @@ def _parse_regras(xls: pd.ExcelFile) -> dict:
 
         chave_bruta = row.get("chave_meta")
         depende_bruto = row.get("depende_indicador")
-        indicador_entry = result.setdefault(grupo, {}).setdefault(indicador, {
+        unidade_bruta = row.get("unidade")
+        unidade = str(unidade_bruta).strip().upper() if pd.notna(unidade_bruta) and str(unidade_bruta).strip() else None
+
+        variantes = result.setdefault(grupo, {}).setdefault(indicador, {})
+        indicador_entry = variantes.setdefault(unidade, {
             "direcao":    str(row.get("direcao")).strip().lower() if pd.notna(row.get("direcao")) else "maior",
             "chave_meta": str(chave_bruta).strip() if pd.notna(chave_bruta) else None,
             "depende_indicador": str(depende_bruto).strip().lower() if pd.notna(depende_bruto) else None,

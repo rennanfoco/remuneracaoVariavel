@@ -72,7 +72,7 @@
         <table data-sortavel>
             <thead>
                 <tr>
-                    <th>Grupo</th><th>Indicador</th><th>Direção</th><th>Depende de</th>
+                    <th>Grupo</th><th>Loja</th><th>Indicador</th><th>Direção</th><th>Depende de</th>
                     <th>Faixa</th><th>Mín</th><th>Máx</th><th>%</th>
                 </tr>
             </thead>
@@ -81,6 +81,7 @@
                     {% for f in ind.faixas.all %}
                     <tr>
                         <td>{{ ind.grupo.nome }}</td>
+                        <td>{% if ind.loja %}<span class="chip proc"><span class="led"></span>{{ ind.loja.unidade }}</span>{% else %}<span style="color:var(--foco-gray-mid);">padrão</span>{% endif %}</td>
                         <td>{{ ind.get_indicador_display }}</td>
                         <td>{{ ind.get_direcao_display }}</td>
                         <td>{% if ind.depende_indicador %}{{ ind.get_depende_indicador_display }} ≥ {{ ind.depende_valor_min }}{% else %}—{% endif %}</td>
@@ -92,6 +93,7 @@
                     {% empty %}
                     <tr>
                         <td>{{ ind.grupo.nome }}</td>
+                        <td>{% if ind.loja %}<span class="chip proc"><span class="led"></span>{{ ind.loja.unidade }}</span>{% else %}<span style="color:var(--foco-gray-mid);">padrão</span>{% endif %}</td>
                         <td>{{ ind.get_indicador_display }}</td>
                         <td>{{ ind.get_direcao_display }}</td>
                         <td>{% if ind.depende_indicador %}{{ ind.get_depende_indicador_display }} ≥ {{ ind.depende_valor_min }}{% else %}—{% endif %}</td>

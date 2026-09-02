@@ -29,9 +29,9 @@ class FaixaCalculoInline(admin.TabularInline):
 
 @admin.register(IndicadorRegra)
 class IndicadorRegraAdmin(admin.ModelAdmin):
-    list_display = ("grupo", "indicador", "direcao", "chave_meta", "depende_indicador", "depende_valor_min")
-    list_filter = ("indicador", "direcao", "grupo", "depende_indicador")
-    autocomplete_fields = ("grupo",)
+    list_display = ("grupo", "indicador", "loja", "direcao", "chave_meta", "depende_indicador", "depende_valor_min")
+    list_filter = ("indicador", "direcao", "grupo", "depende_indicador", "loja")
+    autocomplete_fields = ("grupo", "loja")
     inlines = [FaixaCalculoInline]
 
 

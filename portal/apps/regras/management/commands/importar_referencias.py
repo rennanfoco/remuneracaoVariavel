@@ -79,10 +79,10 @@ class Command(BaseCommand):
         with transaction.atomic():
             n_grupos = self._importar_grupos(grupos_modelo)
             n_cargos = self._importar_cargos(cargos_grupo, tetos)
+            n_lojas = self._importar_lojas(lojas)  # antes de regras: regra por loja precisa da Loja já existir
             n_ind, n_faixas = self._importar_regras(regras)
             n_metas = self._importar_metas(metas)
             n_metas_fat_reg = self._importar_metas_faturamento_regional(metas_fat_reg)
-            n_lojas = self._importar_lojas(lojas)
             n_totvs = self._importar_totvs(totvs)
 
         self.resumo = (
@@ -143,6 +143,7 @@ class Command(BaseCommand):
     def _importar_regras(self, regras):
         n_ind = n_faixas = 0
         grupos_cache = {g.nome: g for g in Grupo.objects.all()}
+        lojas_cache = {l.unidade: l for l in Loja.objects.all()}
         for grupo_nome, indicadores in regras.items():
             grupo = grupos_cache.get(grupo_nome)
             if grupo is None:
@@ -151,29 +152,41 @@ class Command(BaseCommand):
                     f"inexistente na aba Grupos — pulando."
                 ))
                 continue
-            for indicador_nome, dados in indicadores.items():
-                indicador_regra, _criado = IndicadorRegra.objects.update_or_create(
-                    grupo=grupo, indicador=indicador_nome,
-                    defaults={
-                        "direcao": dados.get("direcao", "maior"),
-                        "chave_meta": dados.get("chave_meta") or "",
-                        "depende_indicador": dados.get("depende_indicador") or "",
-                        "depende_valor_min": _dec(dados.get("depende_valor_min")),
-                    },
-                )
-                self._marcar(indicador_regra)
-                n_ind += 1
-                for faixa in dados["faixas"]:
-                    obj, _criado = FaixaCalculo.objects.update_or_create(
-                        indicador_regra=indicador_regra, faixa=faixa["faixa"],
+            for indicador_nome, variantes in indicadores.items():
+                for unidade_codigo, dados in variantes.items():
+                    loja = None
+                    if unidade_codigo:
+                        loja = lojas_cache.get(unidade_codigo)
+                        if loja is None:
+                            self.stderr.write(self.style.WARNING(
+                                f"Regras_Calculo tem uma regra específica pra loja "
+                                f"'{unidade_codigo}' ({grupo_nome}/{indicador_nome}) que não "
+                                f"está cadastrada na aba Lojas — pulando essa regra."
+                            ))
+                            continue
+
+                    indicador_regra, _criado = IndicadorRegra.objects.update_or_create(
+                        grupo=grupo, indicador=indicador_nome, loja=loja,
                         defaults={
-                            "valor_min": _dec(faixa["min"]),
-                            "valor_max": _dec(faixa["max"]),
-                            "pct": _dec(faixa["pct"]),
+                            "direcao": dados.get("direcao", "maior"),
+                            "chave_meta": dados.get("chave_meta") or "",
+                            "depende_indicador": dados.get("depende_indicador") or "",
+                            "depende_valor_min": _dec(dados.get("depende_valor_min")),
                         },
                     )
-                    self._marcar(obj)
-                    n_faixas += 1
+                    self._marcar(indicador_regra)
+                    n_ind += 1
+                    for faixa in dados["faixas"]:
+                        obj, _criado = FaixaCalculo.objects.update_or_create(
+                            indicador_regra=indicador_regra, faixa=faixa["faixa"],
+                            defaults={
+                                "valor_min": _dec(faixa["min"]),
+                                "valor_max": _dec(faixa["max"]),
+                                "pct": _dec(faixa["pct"]),
+                            },
+                        )
+                        self._marcar(obj)
+                        n_faixas += 1
         return n_ind, n_faixas
 
     def _importar_metas(self, metas):

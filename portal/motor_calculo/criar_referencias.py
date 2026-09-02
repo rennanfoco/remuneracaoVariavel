@@ -60,13 +60,18 @@ def main():
     #   depende_valor_min — valor mínimo REAL (não faixa) que depende_indicador
     #                  precisa atingir — ex: 100 (se depende_indicador=faturamento,
     #                  significa "faturamento >= 100%"). Repetir em todas as linhas.
+    #   unidade      — (opcional) código de uma loja específica (ex: SAO10) — se
+    #                  preenchido, essa linha só vale pra quem trabalha lá,
+    #                  sobrescrevendo a regra padrão desse grupo+indicador só
+    #                  pra essa loja. Deixar em branco = regra padrão (nacional),
+    #                  vale pra todo mundo que não tiver uma regra específica.
     #
     # Obs sobre faturamento: thresholds em % de atingimento (100 = meta exata, 105 = 5% acima da meta).
     # ------------------------------------------------------------------
     ws = wb.create_sheet("Regras_Calculo")
     _escrever(ws,
         ["grupo", "indicador", "faixa", "valor_min", "valor_max", "pct", "direcao", "chave_meta",
-         "depende_indicador", "depende_valor_min"],
+         "depende_indicador", "depende_valor_min", "unidade"],
         [
             # ── Modelo % do Salário Base ──────────────────────────────
             # Atendente: DMA e Faturamento individuais; NPS da unidade

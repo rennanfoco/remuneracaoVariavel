@@ -37,9 +37,9 @@ def visualizar(request):
         "cargos": Cargo.objects.select_related("grupo").order_by("nome"),
         "indicadores": (
             IndicadorRegra.objects
-            .select_related("grupo")
+            .select_related("grupo", "loja")
             .prefetch_related("faixas")
-            .order_by("grupo__nome", "indicador")
+            .order_by("grupo__nome", "indicador", "loja__unidade")
         ),
         "metas_mensais": MetaMensal.objects.order_by("-mes", "chave", "faixa"),
         "metas_fat_regional": MetaFaturamentoRegional.objects.order_by("-mes", "regional"),

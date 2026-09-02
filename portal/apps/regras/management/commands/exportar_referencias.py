@@ -81,9 +81,9 @@ class Command(BaseCommand):
         linhas = []
         indicadores = (
             IndicadorRegra.objects
-            .select_related("grupo")
+            .select_related("grupo", "loja")
             .prefetch_related("faixas")
-            .order_by("grupo__nome", "indicador")
+            .order_by("grupo__nome", "indicador", "loja__unidade")
         )
         for ind in indicadores:
             for faixa in ind.faixas.order_by("faixa"):
@@ -92,11 +92,12 @@ class Command(BaseCommand):
                     _num(faixa.valor_min), _num(faixa.valor_max), _num(faixa.pct),
                     ind.direcao, ind.chave_meta or None,
                     ind.depende_indicador or None, _num(ind.depende_valor_min),
+                    ind.loja.unidade if ind.loja else None,
                 ))
         _escrever(
             ws,
             ["grupo", "indicador", "faixa", "valor_min", "valor_max", "pct", "direcao", "chave_meta",
-             "depende_indicador", "depende_valor_min"],
+             "depende_indicador", "depende_valor_min", "unidade"],
             linhas,
         )
 

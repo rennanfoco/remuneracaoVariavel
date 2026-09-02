@@ -119,17 +119,37 @@ class IndicadorRegra(models.Model):
         max_digits=10, decimal_places=4, null=True, blank=True,
         help_text="Valor real mínimo (não faixa) que 'Depende indicador' precisa atingir",
     )
+    loja = models.ForeignKey(
+        "Loja", null=True, blank=True, on_delete=models.CASCADE, related_name="regras_especificas",
+        help_text=(
+            "Opcional: deixe em branco pra regra padrão (nacional), válida pra "
+            "quem não tiver uma regra específica. Preencha só se essa loja "
+            "precisar de faixas diferentes das do padrão pra esse indicador."
+        ),
+    )
 
     history = HistoricalRecords()
 
     class Meta:
         verbose_name = "Indicador de Regra"
         verbose_name_plural = "Indicadores de Regra"
-        unique_together = ("grupo", "indicador")
-        ordering = ["grupo__nome", "indicador"]
+        unique_together = ("grupo", "indicador", "loja")
+        ordering = ["grupo__nome", "indicador", "loja__unidade"]
 
     def __str__(self):
-        return f"{self.grupo.nome} / {self.get_indicador_display()}"
+        base = f"{self.grupo.nome} / {self.get_indicador_display()}"
+        return f"{base} ({self.loja.unidade})" if self.loja else base
+
+    def clean(self):
+        # unique_together não pega duplicata quando loja é NULL (regra do
+        # SQL: NULL nunca é igual a NULL) — checa isso manualmente aqui.
+        if self.grupo_id and self.indicador:
+            conflito = IndicadorRegra.objects.filter(
+                grupo_id=self.grupo_id, indicador=self.indicador, loja=self.loja,
+            ).exclude(pk=self.pk)
+            if conflito.exists():
+                onde = f"na loja {self.loja}" if self.loja else "como regra padrão (sem loja)"
+                raise ValidationError(f"Já existe uma regra pra esse grupo + indicador {onde}.")
 
 
 class FaixaCalculo(models.Model):
