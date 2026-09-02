@@ -9,8 +9,9 @@ venv/
 env/
 
 # Dados reais e saídas geradas — nunca devem ir para o repositório
-data/input/
-data/output/
+# (sem "/" no meio, pra bater em qualquer profundidade — hoje moram em
+# motor_calculo/data/ e motor_calculo/samples/, ver docs/GUIA_DJANGO.md)
+data/
 referencias.xlsx
 samples/
 
@@ -25,3 +26,13 @@ samples/
 # SO
 .DS_Store
 Thumbs.db
+
+# --- Portal web (V2 — Django) ---
+db.sqlite3
+media/
+staticfiles/
+
+# Fontes originais (.otf) da Omnes — licenciadas, não redistribuir.
+# Só os .woff2 convertidos em static/fonts/ (esses sim vão pro git) são
+# usados pelo site.
+omnes sans/

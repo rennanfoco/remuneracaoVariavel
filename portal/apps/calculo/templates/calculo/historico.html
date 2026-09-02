@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Histórico — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Histórico de Execuções</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Registro de todas as apurações rodadas pelo portal, com quem executou e quando.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <table>
+        <thead>
+            <tr>
+                <th>Competência</th>
+                <th>Status</th>
+                <th>Iniciado por</th>
+                <th>Data</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for execucao in execucoes %}
+            <tr>
+                <td style="font-weight: 700;">{{ execucao.competencia }}</td>
+                <td>
+                    {% if execucao.status == "concluido" %}<span class="chip ok"><span class="led"></span>Concluído</span>{% endif %}
+                    {% if execucao.status == "erro" %}<span class="chip erro"><span class="led"></span>Erro</span>{% endif %}
+                    {% if execucao.status == "processando" %}<span class="chip proc"><span class="led"></span>Processando</span>{% endif %}
+                </td>
+                <td>{{ execucao.iniciado_por }}</td>
+                <td>{{ execucao.iniciado_em|date:"d/m/Y H:i" }}</td>
+                <td><a href="{% url 'calculo:resultado' execucao.pk %}">ver →</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" style="color: var(--foco-gray-mid);">Nenhuma execução ainda.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

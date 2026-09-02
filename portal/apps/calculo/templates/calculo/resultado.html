@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Resultado — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Competência {{ execucao.competencia }}</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Resultado da apuração, com visualização na tela e download dos arquivos gerados.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem;">
+        <div>
+            {% if execucao.status == "concluido" %}<span class="chip ok"><span class="led"></span>Concluído</span>{% endif %}
+            {% if execucao.status == "erro" %}<span class="chip erro"><span class="led"></span>Erro</span>{% endif %}
+            {% if execucao.status == "processando" %}<span class="chip proc"><span class="led"></span>Processando</span>{% endif %}
+            <p style="margin: .6rem 0 0; font-size: .85rem; color: var(--foco-gray-mid);">
+                iniciado por {{ execucao.iniciado_por }} em {{ execucao.iniciado_em|date:"d/m/Y H:i" }}
+            </p>
+        </div>
+    </div>
+
+    {% if execucao.status == "concluido" %}
+        <div style="margin-top: 1.5rem; display:flex; gap: .75rem; flex-wrap: wrap;">
+            {% if execucao.arquivo_txt %}<a class="btn" href="{{ execucao.arquivo_txt.url }}">⭳ Baixar TXT (TOTVS)</a>{% endif %}
+            {% if execucao.arquivo_relatorio %}<a class="btn btn-ghost" href="{{ execucao.arquivo_relatorio.url }}">⭳ Baixar Relatório (Excel)</a>{% endif %}
+        </div>
+    {% endif %}
+
+    {% if execucao.status == "erro" %}
+        <p class="erro" style="margin-top: 1.5rem;">{{ execucao.erro_mensagem }}</p>
+    {% endif %}
+</div>
+
+{% if relatorio %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">visão geral</span>
+    <h2>Resumo da Apuração</h2>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="valor">{{ relatorio.resumo_geral.processados }}</div>
+            <div class="rotulo">Processados</div>
+        </div>
+        <div class="stat-card">
+            <div class="valor">{{ relatorio.resumo_geral.elegiveis }}</div>
+            <div class="rotulo">Elegíveis</div>
+        </div>
+        <div class="stat-card">
+            <div class="valor">{{ relatorio.resumo_geral.com_premio }}</div>
+            <div class="rotulo">Com prêmio</div>
+        </div>
+        <div class="stat-card">
+            <div class="valor">{{ relatorio.resumo_geral.sem_premio }}</div>
+            <div class="rotulo">Sem prêmio</div>
+        </div>
+        <div class="stat-card">
+            <div class="valor">{{ relatorio.resumo_geral.inelegiveis }}</div>
+            <div class="rotulo">Inelegíveis</div>
+        </div>
+        <div class="stat-card destaque">
+            <div class="valor">{{ relatorio.resumo_geral.valor_total }}</div>
+            <div class="rotulo">Valor total RV</div>
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">por grupo de cargo</span>
+    <h2>Resumo por Grupo</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Grupo RV</th>
+                    <th>Total</th>
+                    <th>Elegíveis</th>
+                    <th>Com Prêmio</th>
+                    <th>Valor Total RV</th>
+                    <th>Prêmio Médio</th>
+                    <th>Salário Total Folha</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for linha in relatorio.resumo_grupo %}
+                <tr>
+                    <td style="font-weight: 700;">{{ linha.grupo }}</td>
+                    <td>{{ linha.total }}</td>
+                    <td>{{ linha.elegiveis }}</td>
+                    <td>{{ linha.com_premio }}</td>
+                    <td>{{ linha.valor_total }}</td>
+                    <td>{{ linha.premio_medio }}</td>
+                    <td>{{ linha.salario_total }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">por colaborador</span>
+    <h2>Detalhado</h2>
+    <p style="font-size:.85rem;">Mesmos dados da aba "Detalhado" do relatório baixado — clique numa coluna pra ordenar.</p>
+    <div class="campo-busca">
+        <input type="text" data-busca-tabela="tabela-detalhado" placeholder="Buscar por nome, cargo, loja...">
+    </div>
+    <div class="table-scroll" style="max-height: 560px; overflow-y: auto;">
+        <table id="tabela-detalhado" data-sortavel>
+            <thead>
+                <tr>
+                    {% for coluna in relatorio.colunas %}
+                    <th>{{ coluna }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for linha in relatorio.linhas %}
+                <tr>
+                    {% for celula in linha %}
+                    <td data-ord="{{ celula.ord }}">{{ celula.texto }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <details>
+        <summary>▸ Log da execução</summary>
+        <div class="terminal">
+            <div class="terminal-bar"><span></span><span></span><span></span></div>
+            <pre>{{ execucao.log }}</pre>
+        </div>
+    </details>
+</div>
+
+<p style="margin-top: 1.5rem;"><a href="{% url 'calculo:executar' %}">← Rodar outro cálculo</a></p>
+{% endblock %}

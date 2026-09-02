@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Entrar — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Bem-vindo(a) de volta</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Entre para calcular a Remuneração Variável do mês ou consultar o histórico de apurações.</p>
+{% endblock %}
+
+{% block content %}
+<div style="max-width: 420px; margin: 0 auto;">
+    <div class="panel">
+        <div class="panel-accent"></div>
+        <p style="font-size:.85rem;">Em produção, o login acontece automaticamente pela conta corporativa (Microsoft / Azure AD). Este formulário existe apenas para desenvolvimento local.</p>
+
+        <form method="post">
+            {% csrf_token %}
+            {% if form.errors %}<p class="erro">Usuário ou senha inválidos.</p>{% endif %}
+            <div class="campo">
+                <label for="id_username">Usuário</label>
+                {{ form.username }}
+            </div>
+            <div class="campo">
+                <label for="id_password">Senha</label>
+                {{ form.password }}
+            </div>
+            <button class="btn" type="submit" style="width:100%; justify-content:center;">Entrar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

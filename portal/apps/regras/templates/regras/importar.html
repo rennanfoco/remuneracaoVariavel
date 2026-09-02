@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Importar Planilha — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Importar Planilha</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Envia um referencias.xlsx e atualiza o banco com o que estiver nele. Se algo sair errado, dá pra reverter depois no Histórico de Importações.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <p class="erro" style="font-weight:700;">
+        Atenção: isso substitui os valores atuais de Grupos, Cargos, Regras de Cálculo, Metas, Lojas e
+        Parâmetros TOTVS pelos da planilha enviada. Registros que já existem são atualizados; nada é
+        apagado automaticamente. Se precisar desfazer, use "Reverter" no
+        <a href="{% url 'regras:historico_importacoes' %}">Histórico de Importações</a> logo em seguida.
+    </p>
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="campo">
+            <label for="id_arquivo">Arquivo (.xlsx)</label>
+            <input type="file" name="arquivo" id="id_arquivo" accept=".xlsx" required>
+        </div>
+        <button class="btn" type="submit">Importar</button>
+    </form>
+</div>
+
+<p style="margin-top: 1.5rem;"><a href="{% url 'regras:visualizar' %}">← Voltar pra Regras</a></p>
+{% endblock %}

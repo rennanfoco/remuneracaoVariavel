@@ -1,0 +1,540 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#F20000">
+<title>{% block title %}Portal RV{% endblock %}</title>
+<link rel="icon" href="{% static 'img/favicon.ico' %}">
+<style>
+    /* ============ TIPOGRAFIA — Omnes (fonte oficial da marca) ============ */
+    @font-face {
+        font-family: "Omnes";
+        src: url("{% static 'fonts/omnes-light.woff2' %}") format("woff2");
+        font-weight: 300; font-style: normal; font-display: swap;
+    }
+    @font-face {
+        font-family: "Omnes";
+        src: url("{% static 'fonts/omnes-regular.woff2' %}") format("woff2");
+        font-weight: 400; font-style: normal; font-display: swap;
+    }
+    @font-face {
+        font-family: "Omnes";
+        src: url("{% static 'fonts/omnes-medium.woff2' %}") format("woff2");
+        font-weight: 500; font-style: normal; font-display: swap;
+    }
+    @font-face {
+        font-family: "Omnes";
+        src: url("{% static 'fonts/omnes-semibold.woff2' %}") format("woff2");
+        font-weight: 600; font-style: normal; font-display: swap;
+    }
+    @font-face {
+        font-family: "Omnes";
+        src: url("{% static 'fonts/omnes-bold.woff2' %}") format("woff2");
+        font-weight: 700; font-style: normal; font-display: swap;
+    }
+    @font-face {
+        font-family: "Omnes";
+        src: url("{% static 'fonts/omnes-black.woff2' %}") format("woff2");
+        font-weight: 900; font-style: normal; font-display: swap;
+    }
+
+    /* ============ TOKENS — Guia de Identidade Visual Foco ============ */
+    :root {
+        color-scheme: light;
+        /* institucionais */
+        --foco-red: #F20000;
+        --foco-red-deep: #C20000;
+        --foco-white: #FFFFFF;
+        /* suporte */
+        --foco-teal: #01A29A;
+        --foco-green: #106B55;
+        --foco-amber: #FFB93C;
+        --foco-peach: #F7C59F;
+        --foco-purple: #5C2A6B;
+        --foco-gray: #494949;
+        --foco-gray-mid: #7a7a7a;
+        --foco-ink: #201f1f;
+
+        --bg: #FFFFFF;
+        --bg-soft: #FFF8F6;
+        --line: #ece4e2;
+        --line-soft: #f4eeed;
+        --text: var(--foco-ink);
+        --text-dim: var(--foco-gray-mid);
+
+        --font-display: "Omnes", sans-serif;
+        --font-body: "Omnes", sans-serif;
+        --font-mono: "Omnes", monospace;
+        --radius: 14px;
+        --radius-sm: 8px;
+        --shadow: 0 2px 4px rgba(32,31,31,.04), 0 10px 30px -12px rgba(242,0,0,.12);
+    }
+
+    * { box-sizing: border-box; }
+
+    html { background: var(--bg); }
+    body {
+        font-family: var(--font-body);
+        color: var(--text);
+        margin: 0;
+        line-height: 1.6;
+        min-height: 100vh;
+        background: var(--bg);
+    }
+
+    h1, h2, h3 {
+        font-family: var(--font-display);
+        font-weight: 700;
+        color: var(--text);
+        margin: 0 0 .3em;
+    }
+    h1 { font-size: 2.1rem; line-height: 1.15; }
+    h2 { font-size: 1.4rem; }
+    p { color: var(--text-dim); margin: 0 0 1rem; }
+    a { color: var(--foco-red); font-weight: 700; }
+    a:hover { color: var(--foco-red-deep); }
+
+    /* pétala decorativa (isotipo simplificado) usada como marcador */
+    .petala { display: inline-block; width: .5em; height: .5em; vertical-align: middle; }
+
+    .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-family: var(--font-body);
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        margin-bottom: .6rem;
+    }
+
+    /* ============ TOPBAR ============ */
+    .topbar {
+        background: var(--bg);
+        border-bottom: 1px solid var(--line);
+        position: sticky;
+        top: 0;
+        z-index: 20;
+    }
+    .topbar-inner {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 0 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 68px;
+        gap: 1.5rem;
+    }
+    .brand { display: flex; align-items: center; }
+    .brand img { height: 34px; width: auto; display: block; }
+
+    nav.mainnav {
+        display: flex;
+        align-items: center;
+        gap: 1.6rem;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: .88rem;
+        flex-wrap: wrap;
+    }
+    nav.mainnav a {
+        color: var(--foco-gray);
+        text-decoration: none;
+        padding: .35rem 0;
+        border-bottom: 2px solid transparent;
+        transition: color .15s ease, border-color .15s ease;
+    }
+    nav.mainnav a:hover { color: var(--foco-red); border-color: var(--foco-red); }
+    nav.mainnav .who {
+        color: var(--text-dim);
+        font-weight: 600;
+        border-left: 1px solid var(--line);
+        padding-left: 1.6rem;
+    }
+    nav.mainnav .who a { color: var(--foco-red-deep); font-weight: 700; }
+
+    /* ============ HERO — a onda característica da marca ============ */
+    .hero {
+        position: relative;
+        background: var(--foco-red);
+        color: var(--foco-white);
+        padding: 2.6rem 1.5rem 4.5rem;
+        overflow: hidden;
+    }
+    .hero-inner { max-width: 1000px; margin: 0 auto; position: relative; z-index: 1; }
+    .hero .eyebrow { color: var(--foco-peach); }
+    .hero h1 { color: var(--foco-white); }
+    .hero p { color: rgba(255,255,255,.85); max-width: 46em; }
+    .hero-wave {
+        position: absolute;
+        left: 0; right: 0; bottom: -1px;
+        width: 100%; height: 60px;
+        display: block;
+    }
+
+    .shell { max-width: 1000px; margin: -2.6rem auto 4rem; padding: 0 1.5rem; position: relative; z-index: 2; }
+
+    /* ============ ALERTS ============ */
+    p.erro, p.sucesso {
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: .88rem;
+        padding: .7rem 1rem;
+        border-radius: var(--radius-sm);
+        margin: 0 0 1rem;
+    }
+    p.erro { background: rgba(242,0,0,.07); color: var(--foco-red-deep); border: 1px solid rgba(242,0,0,.18); }
+    p.sucesso { background: rgba(1,162,154,.1); color: var(--foco-teal); border: 1px solid rgba(1,162,154,.25); }
+
+    /* ============ PANEL ============ */
+    .panel {
+        position: relative;
+        background: var(--foco-white);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 2rem 2.2rem;
+        margin-top: 0;
+    }
+    .panel + .panel { margin-top: 1.5rem; }
+    .panel-accent {
+        position: absolute;
+        top: 0; left: 2rem; right: 2rem;
+        height: 4px;
+        background: linear-gradient(90deg, var(--foco-red), var(--foco-peach));
+        border-radius: 0 0 6px 6px;
+    }
+
+    /* ============ BUTTONS ============ */
+    .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        font-family: var(--font-body);
+        font-weight: 700;
+        font-size: .92rem;
+        padding: .8rem 1.6rem;
+        border-radius: 999px;
+        border: 2px solid var(--foco-red);
+        cursor: pointer;
+        background: var(--foco-red);
+        color: var(--foco-white);
+        text-decoration: none;
+        transition: transform .15s ease, box-shadow .15s ease, background .15s ease, border-color .15s ease;
+    }
+    .btn:hover {
+        background: var(--foco-red-deep);
+        border-color: var(--foco-red-deep);
+        color: var(--foco-white);
+        box-shadow: 0 8px 20px -6px rgba(194,0,0,.45);
+        transform: translateY(-1px);
+    }
+    .btn:active { transform: translateY(0); }
+    .btn-ghost {
+        background: transparent;
+        color: var(--foco-red);
+        border: 2px solid var(--line);
+    }
+    .btn-ghost:hover {
+        background: var(--bg-soft);
+        border-color: var(--foco-red);
+        color: var(--foco-red-deep);
+        box-shadow: none;
+    }
+
+    /* ============ FORMS ============ */
+    .campo { margin-bottom: 1.4rem; }
+    .campo label {
+        display: block;
+        font-family: var(--font-body);
+        font-size: .82rem;
+        font-weight: 700;
+        color: var(--foco-gray);
+        margin-bottom: .4rem;
+    }
+    input, select, textarea {
+        font-family: var(--font-body);
+        font-size: .95rem;
+        color: var(--text);
+        background: var(--bg-soft);
+        border: 2px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: .65rem .8rem;
+        width: 100%;
+        max-width: 440px;
+        transition: border-color .15s ease, box-shadow .15s ease;
+    }
+    input::placeholder { color: var(--foco-gray-mid); }
+    input:focus, select:focus, textarea:focus {
+        outline: none;
+        border-color: var(--foco-red);
+        box-shadow: 0 0 0 4px rgba(242,0,0,.12);
+    }
+    input[type="file"] { padding: .5rem; color: var(--foco-gray); cursor: pointer; }
+    input[type="file"]::file-selector-button {
+        font-family: var(--font-body);
+        font-size: .78rem;
+        font-weight: 700;
+        background: var(--foco-white);
+        color: var(--foco-red);
+        border: 2px solid var(--foco-red);
+        border-radius: 999px;
+        padding: .4rem .9rem;
+        margin-right: .7rem;
+        cursor: pointer;
+        transition: background .15s ease, color .15s ease;
+    }
+    input[type="file"]::file-selector-button:hover { background: var(--foco-red); color: var(--foco-white); }
+
+    .campo-check {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        background: var(--bg-soft);
+        border: 2px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: .8rem 1rem;
+    }
+    .campo-check label {
+        margin: 0;
+        font-family: var(--font-body);
+        font-size: .92rem;
+        font-weight: 600;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        cursor: pointer;
+    }
+    input[type="checkbox"] {
+        width: 19px; height: 19px;
+        accent-color: var(--foco-red);
+        flex-shrink: 0;
+        padding: 0;
+    }
+
+    /* ============ TABLE ============ */
+    table { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .92rem; }
+    th {
+        text-align: left;
+        padding: .7rem .8rem;
+        font-size: .74rem;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: var(--foco-gray-mid);
+        border-bottom: 2px solid var(--line);
+        font-weight: 700;
+        white-space: nowrap;
+    }
+    td { padding: .85rem .8rem; border-bottom: 1px solid var(--line-soft); color: var(--text); white-space: nowrap; }
+    tbody tr { transition: background .15s ease; }
+    tbody tr:hover { background: var(--bg-soft); }
+
+    /* tabela larga (ex: detalhado por colaborador) rola dentro do próprio
+       contêiner — a página nunca rola na horizontal */
+    .table-scroll { overflow-x: auto; margin-top: .5rem; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+    .table-scroll table { margin-top: 0; }
+    .table-scroll th, .table-scroll td { padding: .6rem .7rem; font-size: .84rem; }
+    .table-scroll thead th { position: sticky; top: 0; background: var(--foco-white); z-index: 1; }
+    th.sortavel { cursor: pointer; user-select: none; }
+    th.sortavel:hover { color: var(--foco-red); }
+    th.sortavel .seta { opacity: .4; margin-left: .25rem; }
+    th.sortavel.asc .seta::after { content: "▲"; opacity: 1; }
+    th.sortavel.desc .seta::after { content: "▼"; opacity: 1; }
+    th.sortavel .seta::after { content: "▲"; }
+
+    /* ============ ESTATÍSTICAS (cards) ============ */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        margin-top: 1rem;
+    }
+    .stat-card { background: var(--foco-white); padding: 1rem 1.1rem; }
+    .stat-card .valor { font-family: var(--font-display); font-size: 1.7rem; font-weight: 700; line-height: 1.1; color: var(--text); }
+    .stat-card .rotulo { font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: var(--foco-gray-mid); margin-top: .3rem; }
+    .stat-card.destaque .valor { color: var(--foco-red); }
+
+    .campo-busca { max-width: 320px; margin: 1.25rem 0 0; }
+
+    /* ============ STATUS CHIPS ============ */
+    .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-family: var(--font-body);
+        font-size: .76rem;
+        font-weight: 700;
+        letter-spacing: .02em;
+        padding: .32rem .75rem;
+        border-radius: 999px;
+    }
+    .chip .led { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .chip.ok { color: var(--foco-teal); background: rgba(1,162,154,.1); }
+    .chip.ok .led { background: var(--foco-teal); }
+    .chip.erro { color: var(--foco-red-deep); background: rgba(242,0,0,.08); }
+    .chip.erro .led { background: var(--foco-red); }
+    .chip.proc { color: #9c6b00; background: rgba(255,185,60,.18); }
+    .chip.proc .led { background: var(--foco-amber); animation: pulse 1.2s ease-in-out infinite; }
+
+    /* ============ LOG / TERMINAL ============ */
+    .terminal {
+        margin-top: 1rem;
+        background: var(--foco-ink);
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+    }
+    .terminal-bar { display: flex; gap: .4rem; padding: .6rem .8rem; background: #000; }
+    .terminal-bar span { width: 9px; height: 9px; border-radius: 50%; }
+    .terminal-bar span:nth-child(1) { background: var(--foco-red); }
+    .terminal-bar span:nth-child(2) { background: var(--foco-amber); }
+    .terminal-bar span:nth-child(3) { background: var(--foco-teal); }
+    .terminal pre {
+        margin: 0;
+        padding: 1rem 1.1rem;
+        font-family: "Consolas", monospace;
+        font-size: .8rem;
+        line-height: 1.6;
+        color: #d8d3d0;
+        max-height: 320px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+    details summary {
+        cursor: pointer;
+        font-family: var(--font-body);
+        font-size: .82rem;
+        font-weight: 700;
+        color: var(--foco-gray);
+        margin-top: 1.5rem;
+    }
+    details summary:hover { color: var(--foco-red); }
+
+    /* ============ ANIMATIONS ============ */
+    @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .4; transform: scale(.75); }
+    }
+    @keyframes rise-in {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .panel { animation: rise-in .5s ease both; }
+    .hero-inner { animation: rise-in .45s ease both; }
+
+    @media (max-width: 640px) {
+        .topbar-inner { flex-wrap: wrap; height: auto; padding: .9rem 1.25rem; }
+        nav.mainnav { gap: 1rem; }
+        nav.mainnav .who { border-left: none; padding-left: 0; width: 100%; order: 99; }
+        .hero { padding: 2rem 1.25rem 4rem; }
+        h1 { font-size: 1.7rem; }
+        .panel { padding: 1.4rem 1.4rem; }
+    }
+</style>
+</head>
+<body>
+    {% if user.is_authenticated %}
+    <div class="topbar">
+        <div class="topbar-inner">
+            <a class="brand" href="{% url 'calculo:executar' %}">
+                <img src="{% static 'img/foco-logo.png' %}" alt="Foco aluguel de carros">
+            </a>
+            <nav class="mainnav">
+                <a href="{% url 'calculo:executar' %}">Calcular</a>
+                <a href="{% url 'calculo:historico' %}">Histórico</a>
+                <a href="{% url 'regras:visualizar' %}">Regras</a>
+                {% if user.is_staff %}<a href="{% url 'admin:index' %}">Admin</a>{% endif %}
+                <span class="who">{{ user.email|default:user.username }} — <a href="{% url 'logout' %}">sair</a></span>
+            </nav>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="hero">
+        <div class="hero-inner">
+            <span class="eyebrow">
+                <svg class="petala" viewBox="0 0 24 24" fill="currentColor"><path d="M22 2C22 8 16 14 10 15c0-6 6-12 12-13Z"/></svg>
+                Portal RV — remuneração variável
+            </span>
+            {% block hero %}<h1>Portal RV</h1>{% endblock %}
+            {% block hero_sub %}{% endblock %}
+        </div>
+        <svg class="hero-wave" viewBox="0 0 1000 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M0,20 C 250,70 400,-10 620,25 C 800,52 900,10 1000,30 L1000,60 L0,60 Z" fill="var(--bg)"/>
+        </svg>
+    </div>
+
+    <div class="shell">
+        {% if messages %}
+            {% for message in messages %}
+                <p class="{{ message.tags }}">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </div>
+
+    {% block extra_js %}{% endblock %}
+    <script>
+    // Busca + ordenação genéricas — qualquer <table data-sortavel> ganha
+    // cabeçalhos clicáveis pra ordenar; qualquer <input data-busca-tabela="id">
+    // filtra as linhas da <table id="id"> correspondente. Reaproveitado em
+    // várias telas (histórico, regras...) sem duplicar script por página.
+    (function () {
+        document.querySelectorAll("table[data-sortavel]").forEach(function (tabela) {
+            var thead = tabela.tHead;
+            var tbody = tabela.tBodies[0];
+            if (!thead || !tbody) return;
+            var linhas = Array.prototype.slice.call(tbody.rows);
+
+            Array.prototype.forEach.call(thead.querySelectorAll("th"), function (th) {
+                th.classList.add("sortavel");
+                var seta = document.createElement("span");
+                seta.className = "seta";
+                th.appendChild(seta);
+                th.addEventListener("click", function () {
+                    var asc = !th.classList.contains("asc");
+                    Array.prototype.forEach.call(thead.querySelectorAll("th"), function (t) {
+                        t.classList.remove("asc", "desc");
+                    });
+                    th.classList.add(asc ? "asc" : "desc");
+
+                    var idx = Array.prototype.indexOf.call(th.parentNode.children, th);
+                    linhas.sort(function (a, b) {
+                        var ca = a.children[idx], cb = b.children[idx];
+                        var va = ca.dataset.ord !== undefined ? ca.dataset.ord : ca.textContent.trim();
+                        var vb = cb.dataset.ord !== undefined ? cb.dataset.ord : cb.textContent.trim();
+                        var na = parseFloat(va), nb = parseFloat(vb);
+                        var cmp = (va !== "" && vb !== "" && !isNaN(na) && !isNaN(nb))
+                            ? na - nb
+                            : String(va).localeCompare(String(vb), "pt-BR");
+                        return asc ? cmp : -cmp;
+                    });
+                    linhas.forEach(function (tr) { tbody.appendChild(tr); });
+                });
+            });
+        });
+
+        document.querySelectorAll("input[data-busca-tabela]").forEach(function (input) {
+            var tabela = document.getElementById(input.dataset.buscaTabela);
+            if (!tabela || !tabela.tBodies[0]) return;
+            var linhas = Array.prototype.slice.call(tabela.tBodies[0].rows);
+            input.addEventListener("input", function () {
+                var termo = input.value.trim().toLowerCase();
+                linhas.forEach(function (tr) {
+                    tr.style.display = tr.textContent.toLowerCase().indexOf(termo) !== -1 ? "" : "none";
+                });
+            });
+        });
+    })();
+    </script>
+</body>
+</html>

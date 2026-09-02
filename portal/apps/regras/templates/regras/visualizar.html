@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Regras — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Regras de Negócio Atuais</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>O que está valendo agora no cálculo de RV — cargos, faixas, metas e lojas.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <div style="display:flex; gap:.75rem; flex-wrap:wrap; align-items:center; justify-content:space-between;">
+        <p style="margin:0;">Estas telas espelham o banco em tempo real — qualquer edição pelo <a href="{% url 'admin:index' %}">Admin</a> aparece aqui na hora.</p>
+        <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+            <a class="btn" href="{% url 'regras:exportar' %}">⭳ Exportar planilha</a>
+            {% if e_admin %}
+                <a class="btn btn-ghost" href="{% url 'regras:importar' %}">⭱ Importar planilha</a>
+                <a class="btn btn-ghost" href="{% url 'regras:historico_importacoes' %}">Histórico de Importações</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">grupos</span>
+    <h2>Grupos de Cálculo</h2>
+    <table>
+        <thead><tr><th>Grupo</th><th>Modelo</th></tr></thead>
+        <tbody>
+            {% for g in grupos %}
+            <tr><td style="font-weight:700;">{{ g.nome }}</td><td>{{ g.get_modelo_display }}</td></tr>
+            {% empty %}
+            <tr><td colspan="2" style="color:var(--foco-gray-mid);">Nenhum grupo cadastrado.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">cargos</span>
+    <h2>Cargos</h2>
+    <div class="campo-busca">
+        <input type="text" data-busca-tabela="tabela-cargos" placeholder="Buscar cargo...">
+    </div>
+    <div class="table-scroll">
+        <table id="tabela-cargos" data-sortavel>
+            <thead><tr><th>Cargo</th><th>Grupo</th><th>Teto (R$)</th></tr></thead>
+            <tbody>
+                {% for c in cargos %}
+                <tr>
+                    <td>{{ c.nome }}</td>
+                    <td>{{ c.grupo.nome }}</td>
+                    <td data-ord="{{ c.teto|default:0 }}">{% if c.teto %}R$ {{ c.teto }}{% else %}—{% endif %}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="3" style="color:var(--foco-gray-mid);">Nenhum cargo cadastrado.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">faixas de atingimento</span>
+    <h2>Regras de Cálculo</h2>
+    <div class="table-scroll">
+        <table data-sortavel>
+            <thead>
+                <tr>
+                    <th>Grupo</th><th>Indicador</th><th>Direção</th><th>Depende de</th>
+                    <th>Faixa</th><th>Mín</th><th>Máx</th><th>%</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ind in indicadores %}
+                    {% for f in ind.faixas.all %}
+                    <tr>
+                        <td>{{ ind.grupo.nome }}</td>
+                        <td>{{ ind.get_indicador_display }}</td>
+                        <td>{{ ind.get_direcao_display }}</td>
+                        <td>{% if ind.depende_indicador %}{{ ind.get_depende_indicador_display }} ≥ {{ ind.depende_valor_min }}{% else %}—{% endif %}</td>
+                        <td data-ord="{{ f.faixa }}">{{ f.faixa }}</td>
+                        <td>{{ f.valor_min|default:"—" }}</td>
+                        <td>{{ f.valor_max|default:"—" }}</td>
+                        <td data-ord="{{ f.pct }}">{{ f.pct|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td>{{ ind.grupo.nome }}</td>
+                        <td>{{ ind.get_indicador_display }}</td>
+                        <td>{{ ind.get_direcao_display }}</td>
+                        <td>{% if ind.depende_indicador %}{{ ind.get_depende_indicador_display }} ≥ {{ ind.depende_valor_min }}{% else %}—{% endif %}</td>
+                        <td colspan="4" style="color:var(--foco-gray-mid);">sem faixas cadastradas{% if ind.chave_meta %} (usa meta mensal "{{ ind.chave_meta }}"){% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                {% empty %}
+                <tr><td colspan="8" style="color:var(--foco-gray-mid);">Nenhuma regra cadastrada.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">metas por mês</span>
+    <h2>Metas Mensais (NPS / NONREV)</h2>
+    <table>
+        <thead><tr><th>Mês</th><th>Chave</th><th>Faixa</th><th>Mín</th><th>Máx</th></tr></thead>
+        <tbody>
+            {% for m in metas_mensais %}
+            <tr><td>{{ m.mes }}</td><td>{{ m.chave }}</td><td>{{ m.faixa }}</td><td>{{ m.valor_min|default:"—" }}</td><td>{{ m.valor_max|default:"—" }}</td></tr>
+            {% empty %}
+            <tr><td colspan="5" style="color:var(--foco-gray-mid);">Nenhuma meta mensal cadastrada.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">faturamento regional</span>
+    <h2>Metas de Faturamento Regional</h2>
+    <table>
+        <thead><tr><th>Mês</th><th>Regional</th><th>Meta (R$)</th></tr></thead>
+        <tbody>
+            {% for m in metas_fat_regional %}
+            <tr><td>{{ m.mes }}</td><td>{{ m.regional }}</td><td>R$ {{ m.meta }}</td></tr>
+            {% empty %}
+            <tr><td colspan="3" style="color:var(--foco-gray-mid);">Nenhuma meta regional cadastrada.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">lojas</span>
+    <h2>Lojas → Regional</h2>
+    <div class="campo-busca">
+        <input type="text" data-busca-tabela="tabela-lojas" placeholder="Buscar loja...">
+    </div>
+    <div class="table-scroll" style="max-height: 360px; overflow-y: auto;">
+        <table id="tabela-lojas" data-sortavel>
+            <thead><tr><th>Unidade</th><th>Regional</th></tr></thead>
+            <tbody>
+                {% for l in lojas %}
+                <tr><td>{{ l.unidade }}</td><td>{{ l.regional }}</td></tr>
+                {% empty %}
+                <tr><td colspan="2" style="color:var(--foco-gray-mid);">Nenhuma loja cadastrada.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">integração</span>
+    <h2>Parâmetros TOTVS</h2>
+    <table>
+        <thead><tr><th>Parâmetro</th><th>Valor</th><th>Descrição</th></tr></thead>
+        <tbody>
+            {% for p in totvs %}
+            <tr><td>{{ p.parametro }}</td><td>{{ p.valor }}</td><td>{{ p.descricao }}</td></tr>
+            {% empty %}
+            <tr><td colspan="3" style="color:var(--foco-gray-mid);">Nenhum parâmetro cadastrado.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
