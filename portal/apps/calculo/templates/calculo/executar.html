@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Calcular RV — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Calcular Remuneração Variável</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Preencha a competência, envie os arquivos do mês e clique em Calcular. O processamento leva poucos segundos.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="campo">
+            <label for="{{ form.competencia.id_for_label }}">{{ form.competencia.label }}</label>
+            {{ form.competencia }}
+            {% for erro in form.competencia.errors %}<p class="erro">{{ erro }}</p>{% endfor %}
+        </div>
+
+        <div class="campo campo-check">
+            <label for="{{ form.usar_api_totvs.id_for_label }}">
+                {{ form.usar_api_totvs }}
+                {{ form.usar_api_totvs.label }}
+            </label>
+        </div>
+
+        {% for field in form %}
+            {% if field.name != "competencia" and field.name != "usar_api_totvs" %}
+            <div class="campo">
+                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                {{ field }}
+                {% for erro in field.errors %}<p class="erro">{{ erro }}</p>{% endfor %}
+            </div>
+            {% endif %}
+        {% endfor %}
+
+        {% if form.non_field_errors %}
+            {% for erro in form.non_field_errors %}<p class="erro">{{ erro }}</p>{% endfor %}
+        {% endif %}
+
+        <button class="btn" type="submit">Calcular</button>
+    </form>
+</div>
+{% endblock %}

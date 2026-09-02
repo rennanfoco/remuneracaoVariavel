@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% block title %}Histórico de Importações — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Histórico de Importações</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Cada importação de planilha, com quem fez e quando — dá pra reverter ou reaplicar de uma vez.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <table>
+        <thead>
+            <tr>
+                <th>Arquivo</th>
+                <th>Importado por</th>
+                <th>Quando</th>
+                <th>Status</th>
+                <th>Resumo</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for imp in importacoes %}
+            <tr>
+                <td style="font-weight:700;">{{ imp.arquivo_nome }}</td>
+                <td>{{ imp.importado_por }}</td>
+                <td>{{ imp.importado_em|date:"d/m/Y H:i" }}</td>
+                <td>
+                    {% if imp.status == "aplicada" %}<span class="chip ok"><span class="led"></span>Aplicada</span>{% endif %}
+                    {% if imp.status == "revertida" %}<span class="chip erro"><span class="led"></span>Revertida</span>{% endif %}
+                    {% if imp.alterado_em %}
+                    <div style="font-size:.75rem; color:var(--foco-gray-mid); margin-top:.3rem;">
+                        por {{ imp.alterado_por }} em {{ imp.alterado_em|date:"d/m/Y H:i" }}
+                    </div>
+                    {% endif %}
+                </td>
+                <td style="font-size:.85rem; color:var(--foco-gray-mid); max-width:280px;">{{ imp.resumo }}</td>
+                <td>
+                    {% if imp.status == "aplicada" %}
+                    <form method="post" action="{% url 'regras:reverter' imp.pk %}" onsubmit="return confirm('Reverter esta importação? Todos os registros que ela mudou voltam ao estado anterior.');">
+                        {% csrf_token %}
+                        <button class="btn btn-ghost" type="submit">↺ Reverter</button>
+                    </form>
+                    {% else %}
+                    <form method="post" action="{% url 'regras:reaplicar' imp.pk %}" onsubmit="return confirm('Reaplicar esta importação? Os registros voltam pro estado que ela deixou.');">
+                        {% csrf_token %}
+                        <button class="btn" type="submit">↻ Reaplicar</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="color:var(--foco-gray-mid);">Nenhuma importação registrada ainda.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<p style="margin-top: 1.5rem;">
+    <a href="{% url 'regras:visualizar' %}">← Voltar pra Regras</a>
+    &nbsp;·&nbsp;
+    <a href="{% url 'regras:importar' %}">Importar nova planilha</a>
+</p>
+{% endblock %}

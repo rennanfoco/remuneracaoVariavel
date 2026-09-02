@@ -1,0 +1,73 @@
+/*
+ * Sobrepõe as variáveis CSS do admin padrão do Django com a identidade
+ * visual da Foco — não reescreve nenhuma tela, só recolore o que já existe
+ * (o admin usa custom properties pra quase tudo, ver base.css do Django).
+ */
+
+@font-face {
+    font-family: "Omnes";
+    src: url("../fonts/omnes-regular.woff2") format("woff2");
+    font-weight: 400; font-style: normal; font-display: swap;
+}
+@font-face {
+    font-family: "Omnes";
+    src: url("../fonts/omnes-semibold.woff2") format("woff2");
+    font-weight: 600; font-style: normal; font-display: swap;
+}
+@font-face {
+    font-family: "Omnes";
+    src: url("../fonts/omnes-bold.woff2") format("woff2");
+    font-weight: 700; font-style: normal; font-display: swap;
+}
+
+:root, html[data-theme="light"] {
+    --primary: #F20000;
+    --secondary: #C20000;
+    --accent: #FFB93C;
+    --primary-fg: #fff;
+
+    --header-color: #fff;
+    --header-branding-color: #fff;
+    --header-bg: #F20000;
+    --header-link-color: #fff;
+
+    --breadcrumbs-fg: #ffe0e0;
+    --breadcrumbs-link-fg: #fff;
+    --breadcrumbs-bg: #C20000;
+
+    --link-fg: #C20000;
+    --link-hover-color: #F20000;
+    --link-selected-fg: #C20000;
+
+    --button-bg: #F20000;
+    --button-hover-bg: #C20000;
+    --default-button-bg: #C20000;
+    --default-button-hover-bg: #F20000;
+
+    --object-tools-bg: #C20000;
+    --object-tools-hover-bg: #F20000;
+
+    --font-family-primary: "Omnes", "Segoe UI", system-ui, sans-serif;
+}
+
+/* dark mode do próprio admin (alternável pelo botão de tema) também segue o vermelho da marca */
+html[data-theme="dark"] {
+    --primary: #ff4d4d;
+    --header-bg: #C20000;
+    --link-fg: #ff8080;
+    --link-hover-color: #ffb3b3;
+    --button-bg: #C20000;
+    --button-hover-bg: #F20000;
+}
+
+#site-name a { display: flex; align-items: center; gap: .6rem; }
+/* a logo em si tem fundo branco opaco (não é um PNG transparente), então
+   fica numa "pílula" branca em vez de tentar inverter a cor pra branco */
+#site-name .logo-pilula {
+    height: 22px;
+    width: auto;
+    display: block;
+    background: #fff;
+    padding: .3rem .5rem;
+    border-radius: 999px;
+}
