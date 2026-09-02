@@ -64,7 +64,18 @@ def _avaliar_faixa(valor: float, regra: dict, competencia: str) -> tuple[int, fl
     return 0, 0.0
 
 
-def calcular(grupo: str, base: float, indicadores: dict, competencia: str) -> dict:
+def _regra_da_loja(variantes: dict, unidade: str | None) -> dict | None:
+    """
+    `variantes` é REGRAS[grupo][indicador] — um dict {unidade: regra}, com a
+    entrada None sendo a regra padrão (nacional). Usa a regra específica da
+    loja do colaborador se existir; senão cai na padrão. Retorna None só se
+    nem a loja nem o padrão tiverem regra (indicador não configurado pra
+    esse grupo).
+    """
+    return variantes.get(unidade) or variantes.get(None)
+
+
+def calcular(grupo: str, base: float, indicadores: dict, competencia: str, unidade: str | None = None) -> dict:
     """
     Calcula o RV para um colaborador.
 
@@ -74,6 +85,9 @@ def calcular(grupo: str, base: float, indicadores: dict, competencia: str) -> di
       indicadores — dict com os valores realizados dos indicadores do grupo;
                     "faturamento" deve vir como % de atingimento (ex: 103.5)
       competencia — "AAAA-MM"
+      unidade     — código da loja do colaborador; usada só pra escolher entre
+                    a regra padrão (nacional) e uma regra específica daquela
+                    loja, quando existir (ver Regras_Calculo > coluna unidade)
 
     Retorna:
       {
@@ -98,14 +112,20 @@ def calcular(grupo: str, base: float, indicadores: dict, competencia: str) -> di
     regras_grupo = REGRAS.get(grupo, {})
     detalhes: dict = {}
 
-    # 1ª passada: avalia cada indicador isoladamente, como sempre foi.
-    for indicador, regra in regras_grupo.items():
+    # 1ª passada: avalia cada indicador isoladamente, como sempre foi — só
+    # que a regra usada é a da loja do colaborador, se existir, senão a padrão.
+    regras_usadas: dict = {}
+    for indicador, variantes in regras_grupo.items():
+        regra = _regra_da_loja(variantes, unidade)
+        if regra is None:
+            continue
+        regras_usadas[indicador] = regra
         valor = float(indicadores.get(indicador, 0.0))
         faixa_num, pct = _avaliar_faixa(valor, regra, competencia)
         detalhes[indicador] = {"faixa": faixa_num, "pct": pct, "valor": valor, "bloqueado": False}
 
     # 2ª passada: zera quem depende de outro indicador que não bateu o mínimo.
-    for indicador, regra in regras_grupo.items():
+    for indicador, regra in regras_usadas.items():
         dep_indicador = regra.get("depende_indicador")
         dep_valor_min = regra.get("depende_valor_min")
         if not dep_indicador or dep_valor_min is None:
