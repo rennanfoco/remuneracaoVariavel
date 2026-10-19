@@ -14,7 +14,8 @@ Escopo por indicador:
   Líderes de Frota → NPS, Preventiva, NONREV: unidade
   Líderes de Pátio → NPS, NONREV, Bate Pátio: unidade
   Operadores Frota → NPS, Preventiva, NONREV: unidade
-  Outros Cargos    → NPS: unidade
+  Outros Cargos    → só se o cargo estiver mapeado a um grupo na aba Cargos (ex.: grupo "outros", NPS:
+                     unidade). Cargo SEM grupo mapeado não é calculado: vai para a lista "Não calculados".
 
 Mapeamento loja → regional: vem da aba Lojas (config.LOJA_REGIONAL), não de
 quem está na folha do mês — uma loja sem ninguém alocado continua contando
@@ -43,6 +44,16 @@ _COLUNA_POR_INDICADOR = {
     "nonrev":      "nonrev_pct",
     "preventiva":  "preventiva_pct",
 }
+
+
+# O RM conta dias corridos de folha (mês cheio = 30, domingos incluídos). A meta de faturamento do mês é
+# proporcional a eles: quem trabalhou 15 dias de 30 tem metade da meta (mesma regra do projeto Método
+# FOCO). Sem dado de dias, vale a meta cheia.
+DIAS_DO_MES_NO_RM = 30
+
+
+def _fator_de_dias(dias: pd.Series) -> pd.Series:
+    return (dias.fillna(DIAS_DO_MES_NO_RM) / DIAS_DO_MES_NO_RM).clip(0, 1)
 
 
 def _validar_indicadores_por_loja(colab: pd.DataFrame) -> None:
@@ -104,7 +115,10 @@ def _merge_coral(
     Líderes/Gestores/Regionais. O faturamento individual do colaborador
     (faturamento_realizado, acima) continua somando por LOGIN, independente da
     loja de cada contrato.
-    meta_df já vem do loader com: login_coral, meta_faturamento (numérico).
+    meta_df já vem do loader com: login_coral, unidade (loja da própria planilha de metas) e
+    meta_faturamento (numérico, meta cheia do mês).
+    A meta é proporcional aos dias trabalhados (ver _fator_de_dias), tanto a individual quanto a soma
+    da loja; faturamento_realizado vem do arquivo pro rata, que já rateia cada contrato por dia.
     mapeamento_df: login_coral → matricula.
     competencia: "AAAA-MM" — usada para buscar a meta de faturamento de cada
     Regional em METAS_FATURAMENTO_REGIONAL (config.py > aba
@@ -120,9 +134,10 @@ def _merge_coral(
     # Junta coral com mapeamento para obter matrícula
     coral = coral_df.merge(mapa, on="login_coral", how="left")
 
-    # Junta meta com mapeamento (matrícula) e com coral (unidade por login)
+    # Junta meta com mapeamento (matrícula). A loja da meta é a da própria planilha de metas — e não a
+    # loja onde o login vendeu —, senão quem tem meta e não vendeu nada no mês sumiria da meta da loja
+    # e o atingimento dela ficaria inflado.
     meta = meta_df.merge(mapa, on="login_coral", how="left")
-    meta = meta.merge(coral_df[["login_coral", "unidade"]], on="login_coral", how="left")
 
     # Vincula indicadores individuais ao colaborador pela matrícula
     # Agrega por matrícula para evitar duplicação quando há múltiplos logins por pessoa
@@ -147,17 +162,21 @@ def _merge_coral(
     colab[["dma", "faturamento_realizado", "meta_faturamento"]] = (
         colab[["dma", "faturamento_realizado", "meta_faturamento"]].fillna(0.0)
     )
+    # Meta individual proporcional aos dias trabalhados no mês.
+    colab["meta_faturamento"] = colab["meta_faturamento"] * _fator_de_dias(colab["dias_trabalhados"])
 
     # Meta de loja/regional deve somar só a meta dos ATENDENTES daquela loja —
     # exclui logins cuja matrícula pertence a outro grupo (ex: o próprio
     # líder/gestor com uma entrada individual na planilha de meta). Logins sem
     # matrícula mapeada (fora da Lista de Logins) são mantidos, pois só
-    # atendentes têm login no Coral.
-    cargos = colab[["matricula", "grupo_calculo"]].drop_duplicates()
+    # atendentes têm login no Coral. Cada meta entra proporcional aos dias
+    # trabalhados de quem a recebe (sem colaborador na folha, vale a meta cheia).
+    cargos = colab[["matricula", "grupo_calculo", "dias_trabalhados"]].drop_duplicates("matricula")
     meta_equipe = meta.merge(cargos, on="matricula", how="left")
     meta_equipe = meta_equipe[
         meta_equipe["grupo_calculo"].isna() | (meta_equipe["grupo_calculo"] == "atendente")
-    ]
+    ].copy()
+    meta_equipe["meta_proporcional"] = meta_equipe["meta_faturamento"] * _fator_de_dias(meta_equipe["dias_trabalhados"])
 
     # DMA por unidade (para Líderes e Gestores) — continua vinculado pela loja
     # "de casa" do login, já que o DMA é uma métrica de qualidade da venda, não
@@ -176,7 +195,7 @@ def _merge_coral(
     unit_fat = coral_por_loja_df.rename(columns={"fat_realizado_loja": "fat_realizado_unidade"})
 
     unit_meta = meta_equipe.groupby("unidade", as_index=False).agg(
-        fat_meta_unidade=("meta_faturamento", "sum"),
+        fat_meta_unidade=("meta_proporcional", "sum"),
     )
     unit = (
         unit_dma.merge(unit_fat, on="unidade", how="outer")
@@ -363,21 +382,32 @@ def _calcular_linha(row: pd.Series, grupo: str, competencia: str) -> dict:
 # Ponto de entrada do engine
 # ---------------------------------------------------------------------------
 
-def processar(data: dict, competencia: str) -> pd.DataFrame:
+def _separar_nao_calculados(colab: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Separa quem tem grupo de cálculo de quem não tem (cargo fora da aba Cargos do referencias.xlsx).
+    Quem não tem grupo NÃO é calculado — não sabemos que parâmetros valem para ele — e volta numa
+    tabela à parte, para aparecer como aviso e na aba "Não calculados" do relatório.
+    """
+    sem_grupo = colab["grupo"].isna() | (colab["grupo"] == "")
+    nao_calculados = colab.loc[
+        sem_grupo, ["matricula", "nome", "cargo", "unidade", "regional", "salario_base", "dias_trabalhados"]
+    ].copy()
+    nao_calculados["motivo"] = "Cargo sem grupo de cálculo (aba Cargos do referencias.xlsx)"
+    return colab[~sem_grupo].copy(), nao_calculados.reset_index(drop=True)
+
+
+def processar(data: dict, competencia: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Recebe o dict de DataFrames retornado por loader.carregar_tudo()
     e a competência no formato "AAAA-MM".
-    Retorna DataFrame com uma linha por colaborador e colunas de resultado.
+    Retorna (resultados, nao_calculados): resultados tem uma linha por colaborador calculado, com as
+    colunas de resultado; nao_calculados lista quem ficou de fora por cargo sem grupo de cálculo.
     """
     colab = normalizar_colaboradores(data["colaboradores"])
 
-    # Grupo vem direto da coluna grupo_calculo do TOTVS RM
+    # Grupo vem direto da coluna grupo_calculo (derivada do cargo pelo loader/API)
     colab["grupo"] = colab["grupo_calculo"]
-    sem_grupo = colab[colab["grupo"].isna() | (colab["grupo"] == "")]
-    if not sem_grupo.empty:
-        mats = sem_grupo["matricula"].unique().tolist()
-        print(f"[AVISO] Colaboradores sem grupo_calculo preenchido (serão ignorados): {mats}")
-    colab = colab[colab["grupo"].notna() & (colab["grupo"] != "")].copy()
+    colab, nao_calculados = _separar_nao_calculados(colab)
 
     # Enriquece com indicadores
     colab = _merge_nps(colab, data["nps"])
@@ -395,4 +425,4 @@ def processar(data: dict, competencia: str) -> pd.DataFrame:
 
     # Calcula RV linha a linha
     resultados = [_calcular_linha(row, row["grupo"], competencia) for _, row in colab.iterrows()]
-    return pd.DataFrame(resultados)
+    return pd.DataFrame(resultados), nao_calculados

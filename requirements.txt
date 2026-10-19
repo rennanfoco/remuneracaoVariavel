@@ -1,12 +1,17 @@
-pandas>=2.0.0
-openpyxl>=3.1.0
-requests>=2.31.0
-python-dotenv>=1.0.0
+# Versões travadas (==) — testadas e usadas em dev/CI. Um `pip install`
+# novo não deve trazer uma versão mais nova sem ninguém perceber ("funcionava
+# ontem"). Para atualizar de propósito: suba a versão aqui, rode a suíte de
+# testes (ver README.md > Testes automatizados) e o CI antes de assumir que
+# está tudo certo.
+pandas==2.3.3
+openpyxl==3.1.5
+requests==2.32.4
+python-dotenv==1.2.2
 
 # --- Portal web (V2) ---
-Django>=5.0
-gunicorn>=21.2.0
-psycopg2-binary>=2.9.9
-whitenoise>=6.6.0
-django-simple-history>=3.5.0
-dj-database-url>=2.2.0
+Django==6.1
+gunicorn==26.0.0
+psycopg2-binary==2.9.12
+whitenoise==6.12.0
+django-simple-history==3.13.0
+dj-database-url==3.1.2

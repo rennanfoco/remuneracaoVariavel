@@ -5,43 +5,110 @@
 <h1>Calcular Remuneração Variável</h1>
 {% endblock %}
 {% block hero_sub %}
-<p>Preencha a competência, envie os arquivos do mês e clique em Calcular. O processamento leva poucos segundos.</p>
+<p>Escolha a competência e calcule com os arquivos que já estão na aba Arquivos. O processamento leva poucos segundos.</p>
 {% endblock %}
 
 {% block content %}
 <div class="panel">
     <div class="panel-accent"></div>
-    <form method="post" enctype="multipart/form-data">
-        {% csrf_token %}
-
-        <div class="campo">
-            <label for="{{ form.competencia.id_for_label }}">{{ form.competencia.label }}</label>
-            {{ form.competencia }}
-            {% for erro in form.competencia.errors %}<p class="erro">{{ erro }}</p>{% endfor %}
+    <form method="get" style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
+        <div class="campo" style="margin:0;">
+            <label for="competencia">Competência</label>
+            <input type="month" id="competencia" name="competencia" value="{{ competencia }}" placeholder="AAAA-MM" onchange="this.form.submit()">
         </div>
-
-        <div class="campo campo-check">
-            <label for="{{ form.usar_api_totvs.id_for_label }}">
-                {{ form.usar_api_totvs }}
-                {{ form.usar_api_totvs.label }}
-            </label>
-        </div>
-
-        {% for field in form %}
-            {% if field.name != "competencia" and field.name != "usar_api_totvs" %}
-            <div class="campo">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% for erro in field.errors %}<p class="erro">{{ erro }}</p>{% endfor %}
-            </div>
-            {% endif %}
-        {% endfor %}
-
-        {% if form.non_field_errors %}
-            {% for erro in form.non_field_errors %}<p class="erro">{{ erro }}</p>{% endfor %}
-        {% endif %}
-
-        <button class="btn" type="submit">Calcular</button>
+        <button class="btn btn-ghost" type="submit">Ver</button>
+        <a class="btn btn-ghost" href="{% url 'calculo:arquivos' %}?competencia={{ competencia }}" style="margin-left:auto;">Gerenciar arquivos →</a>
     </form>
 </div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">arquivos que serão usados</span>
+    <h2>{{ competencia }}</h2>
+
+    <div class="table-scroll">
+        <table>
+            <thead><tr><th>Arquivo</th><th>Status</th><th>Versão que será usada</th></tr></thead>
+            <tbody>
+                {% for item in situacao.itens %}
+                <tr id="item-{{ item.tipo }}">
+                    <td style="font-weight:700;">{{ item.rotulo }}</td>
+                    <td>
+                        {% if item.arquivo and item.herdado %}
+                            <span class="chip proc"><span class="led"></span>da competência {{ item.arquivo.competencia }}</span>
+                        {% elif item.arquivo %}
+                            <span class="chip ok"><span class="led"></span>Pronto</span>
+                        {% elif item.obrigatorio %}
+                            <span class="chip erro" {% if item.tipo == "colaboradores" %}data-status-colaboradores{% endif %}><span class="led"></span>Falta</span>
+                        {% else %}
+                            <span style="color:var(--foco-gray-mid); font-size:.85rem;">opcional, não enviado</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:.84rem;">
+                        {% if item.arquivo %}
+                            <div>{{ item.arquivo.nome_original }}</div>
+                            <div style="color:var(--foco-gray-mid);">
+                                {% if item.arquivo.origem == "totvs" %}buscado no TOTVS{% else %}enviado{% endif %}
+                                por {{ item.arquivo.enviado_por }} em {{ item.arquivo.enviado_em|date:"d/m/Y H:i" }}
+                            </div>
+                            {% if item.arquivo.resumo %}<div style="color:var(--foco-gray-mid);">{{ item.arquivo.resumo }}</div>{% endif %}
+                        {% else %}
+                            <span style="color:var(--foco-gray-mid);">—</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <form method="post">
+        {% csrf_token %}
+        {{ form.competencia }}
+
+        {% for pendencia in outras_pendencias %}
+            <p class="erro">{{ pendencia }}</p>
+        {% endfor %}
+
+        <div class="campo campo-check">
+            <label for="{{ form.buscar_totvs.id_for_label }}">
+                {{ form.buscar_totvs }}
+                {{ form.buscar_totvs.label }}
+            </label>
+        </div>
+        <p style="font-size:.85rem; margin:.6rem 0 1.4rem;">
+            {% if colaboradores.arquivo %}
+                Sem marcar, o cálculo usa a base de colaboradores de {{ competencia }} que já está guardada
+                ({% if colaboradores.arquivo.origem == "totvs" %}buscada no TOTVS{% else %}enviada{% endif %}
+                em {{ colaboradores.arquivo.enviado_em|date:"d/m/Y H:i" }}). Marque para atualizar com o que o TOTVS tem agora.
+            {% else %}
+                <strong>Ainda não há base de colaboradores de {{ competencia }}.</strong>
+                Marque a opção para buscar no TOTVS (ou envie o CSV na aba Arquivos). Os dias trabalhados mudam todo mês, por isso a base precisa ser da competência.
+            {% endif %}
+        </p>
+
+        <button class="btn" type="submit" id="botao-calcular"{% if outras_pendencias %} disabled{% endif %}>Calcular</button>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Sem base de colaboradores da competência, o botão só habilita com "Buscar no TOTVS" marcado
+// (o servidor confere de novo — isto é só para não deixar clicar à toa).
+(function () {
+    var botao = document.getElementById("botao-calcular");
+    var marcar = document.getElementById("{{ form.buscar_totvs.id_for_label }}");
+    var semBase = {% if colaboradores.arquivo %}false{% else %}true{% endif %};
+    var bloqueadoPorOutros = {% if outras_pendencias %}true{% else %}false{% endif %};
+    function atualizar() {
+        botao.disabled = bloqueadoPorOutros || (semBase && !marcar.checked);
+    }
+    marcar.addEventListener("change", atualizar);
+    atualizar();
+})();
+</script>
 {% endblock %}

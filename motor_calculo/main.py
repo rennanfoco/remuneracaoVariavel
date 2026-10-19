@@ -71,7 +71,7 @@ def main():
 
     print("Carregando arquivos de entrada...")
     try:
-        data = carregar_tudo(input_dir, colaboradores_df=colab_df)
+        data = carregar_tudo(input_dir, colaboradores_df=colab_df, competencia=args.competencia)
     except (FileNotFoundError, ValueError) as e:
         print(f"\n[ERRO] {e}")
         sys.exit(1)
@@ -81,7 +81,7 @@ def main():
     # 2. Processa e calcula
     print("Calculando RV...")
     try:
-        df = processar(data, args.competencia)
+        df, nao_calculados = processar(data, args.competencia)
     except (KeyError, ValueError) as e:
         print(f"\n[ERRO] {e}")
         sys.exit(1)
@@ -98,12 +98,19 @@ def main():
     print(f"  Com prêmio                : {com_premio}")
     print(f"  Sem prêmio (não atingiu)  : {sem_premio}")
     print(f"  Inelegíveis               : {inelegiveis}")
-    print(f"  Valor total RV            : R$ {valor_total:,.2f}\n")
+    print(f"  Valor total RV            : R$ {valor_total:,.2f}")
+    if not nao_calculados.empty:
+        print(
+            f"  NÃO calculados (cargo sem grupo): {len(nao_calculados)} — "
+            f"veja a aba 'Não calculados' do relatório\n"
+        )
+    else:
+        print()
 
     # 3. Gera outputs
     print("Gerando arquivos de saída...")
     txt_path      = gerar_txt(df, args.competencia, output_dir)
-    relatorio_path = gerar_relatorio(df, args.competencia, output_dir)
+    relatorio_path = gerar_relatorio(df, args.competencia, output_dir, nao_calculados)
 
     print(f"  TXT TOTVS : {txt_path}")
     print(f"  Relatório : {relatorio_path}")

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  motor-calculo:
+    name: Motor de Cálculo (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # As duas cópias autocontidas do motor (raiz = CLI standalone; a de
+        # dentro de portal/ = a que o portal realmente executa via
+        # subprocess) rodam a MESMA suíte de testes — se uma divergir da
+        # outra em comportamento, os testes falham só para a cópia que
+        # ficou desatualizada. Ver portal/webapp/settings.py::MOTOR_CALCULO_DIR.
+        dir: ["motor_calculo", "portal/motor_calculo"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      # O referencias.xlsx real não é versionado (.gitignore) e o config.py exige o arquivo no
+      # import — gera o base, que só serve para o import funcionar (cada teste monta seu cenário).
+      - name: Gerar referencias.xlsx base
+        working-directory: ${{ matrix.dir }}
+        run: python criar_referencias.py
+
+      - name: Rodar testes
+        run: python -m unittest discover -t "${{ matrix.dir }}" -s "${{ matrix.dir }}/tests" -p "test_*.py" -v
+
+  portal:
+    name: Portal Web (Django)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Instalar dependências
+        run: pip install -r requirements.txt
+
+      - name: Checagem de configuração do Django
+        working-directory: portal
+        run: python manage.py check
+
+      - name: Rodar testes
+        working-directory: portal
+        env:
+          DJANGO_DEBUG: "1"
+        run: python manage.py test apps -v 2

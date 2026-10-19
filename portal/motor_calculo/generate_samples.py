@@ -125,9 +125,9 @@ def _colaboradores():
 
 
 # ---------------------------------------------------------------------------
-# Coral — dados brutos de locações (dma-accumulated*.csv)
+# Coral — dados brutos de locações, formato pro rata (dma-pro-rata*.csv)
 # DMA e faturamento são calculados pelo loader a partir das linhas individuais.
-# Colunas obrigatórias: LOGIN, LOJA, VALOR VENDIDO, DIAS, PREMIAVEL
+# Colunas obrigatórias: LOGIN, LOJA, VALOR_VENDIDO_PRO_RATA, DIAS_NO_PERIODO, PREMIAVEL
 # PREMIAVEL: 'yes' | 'no' | 'voucher-required'  (só 'no' é excluído do DMA)
 # No arquivo real, cada contrato tem uma linha por item opcional e a coluna
 # DIAS só vem preenchida na linha do item base (LDW) — o loader soma DIAS
@@ -146,7 +146,7 @@ def _coral(colaboradores):
 
     rows = []
     login_to_mat = {}
-    meta_por_login = {}
+    meta_por_login = {}  # login -> (meta, loja)
     idx = 0
 
     for c in atendentes:
@@ -163,23 +163,23 @@ def _coral(colaboradores):
             rows.append({
                 "LOGIN":         login,
                 "LOJA":          und,
-                "VALOR VENDIDO": f"{dma_alvo:.2f}".replace(".", ","),
-                "DIAS":          "1",
+                "VALOR_VENDIDO_PRO_RATA": f"{dma_alvo:.2f}".replace(".", ","),
+                "DIAS_NO_PERIODO": "1",
                 "PREMIAVEL":     "yes",
             })
         for _ in range(2):
             rows.append({
                 "LOGIN":         login,
                 "LOJA":          und,
-                "VALOR VENDIDO": f"{dma_alvo:.2f}".replace(".", ","),
-                "DIAS":          "1",
+                "VALOR_VENDIDO_PRO_RATA": f"{dma_alvo:.2f}".replace(".", ","),
+                "DIAS_NO_PERIODO": "1",
                 "PREMIAVEL":     "no",
             })
 
         # meta de faturamento: fat_realizado = 10 * dma_alvo; meta = fat / ating
         fat_realizado = 10 * dma_alvo
         meta = fat_realizado / fat_ating
-        meta_por_login[login] = round(meta, 2)
+        meta_por_login[login] = (round(meta, 2), und)
         idx += 1
 
     return rows, login_to_mat, meta_por_login
@@ -217,7 +217,7 @@ def _bate_patio():
 
 
 # ---------------------------------------------------------------------------
-# Meta Faturamento — por login (Importação Planilha*.csv)
+# Meta Faturamento — por login, com a loja (Importação Planilha*.csv)
 # Estrutura: header PT → linha EN (skipped pelo loader) → dados
 # Separador: ; | Encoding: utf-8-sig
 # ---------------------------------------------------------------------------
@@ -225,11 +225,12 @@ def _bate_patio():
 def _meta_faturamento(meta_por_login):
     rows = []
     # Primeira linha de dados = nomes de campo em inglês (o loader vai pular)
-    rows.append({"Usuário": "user_login", "Meta de Faturamento": "billing_goal"})
-    for login, meta in meta_por_login.items():
+    rows.append({"Usuário": "user_login", "Meta de Faturamento": "billing_goal", "Loja": "store_id"})
+    for login, (meta, loja) in meta_por_login.items():
         rows.append({
             "Usuário":             login,
             "Meta de Faturamento": f"{meta:.2f}".replace(".", ","),
+            "Loja":                loja,
         })
     return rows
 
@@ -370,9 +371,9 @@ def main():
     # colaboradores_rm.csv — nome FIXO (não usa glob)
     _csv(colaboradores, "colaboradores_rm.csv")
 
-    # dma-accumulated_sample.csv — glob: dma-accumulated*.csv
-    _csv(coral_rows, "dma-accumulated_sample.csv",
-         fieldnames=["LOGIN", "LOJA", "VALOR VENDIDO", "DIAS", "PREMIAVEL"])
+    # dma-pro-rata_sample.csv — glob: dma-pro-rata*.csv
+    _csv(coral_rows, "dma-pro-rata_sample.csv",
+         fieldnames=["LOGIN", "LOJA", "VALOR_VENDIDO_PRO_RATA", "DIAS_NO_PERIODO", "PREMIAVEL"])
 
     # data_nps.xlsx — glob: data*.xlsx
     _xlsx_nps(_nps(), "data_nps.xlsx")
@@ -386,7 +387,7 @@ def main():
     # Importacao Planilha_amostra.csv — glob: Importa??o Planilha*.csv
     # (o ? no glob corresponde a 'ç')
     _csv(_meta_faturamento(meta_por_login), "Importação Planilha_amostra.csv",
-         fieldnames=["Usuário", "Meta de Faturamento"])
+         fieldnames=["Usuário", "Meta de Faturamento", "Loja"])
 
     # Lista de Logins_amostra.xlsx — glob: Lista de Logins*.xlsx
     _xlsx(_mapeamento(login_to_mat), "Lista de Logins_amostra.xlsx")

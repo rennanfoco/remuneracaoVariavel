@@ -178,7 +178,7 @@
     .shell { max-width: 1000px; margin: -2.6rem auto 4rem; padding: 0 1.5rem; position: relative; z-index: 2; }
 
     /* ============ ALERTS ============ */
-    p.erro, p.sucesso {
+    p.erro, p.sucesso, p.aviso, p.info {
         font-family: var(--font-body);
         font-weight: 700;
         font-size: .88rem;
@@ -188,6 +188,8 @@
     }
     p.erro { background: rgba(242,0,0,.07); color: var(--foco-red-deep); border: 1px solid rgba(242,0,0,.18); }
     p.sucesso { background: rgba(1,162,154,.1); color: var(--foco-teal); border: 1px solid rgba(1,162,154,.25); }
+    p.aviso { background: rgba(255,185,60,.18); color: #9c6b00; border: 1px solid rgba(255,185,60,.45); }
+    p.info { background: var(--bg-soft); color: var(--text); border: 1px solid var(--line); }
 
     /* ============ PANEL ============ */
     .panel {
@@ -448,6 +450,7 @@
                 <img src="{% static 'img/foco-logo.png' %}" alt="Foco aluguel de carros">
             </a>
             <nav class="mainnav">
+                <a href="{% url 'calculo:arquivos' %}">Arquivos</a>
                 <a href="{% url 'calculo:executar' %}">Calcular</a>
                 <a href="{% url 'calculo:historico' %}">Histórico</a>
                 <a href="{% url 'regras:visualizar' %}">Regras</a>

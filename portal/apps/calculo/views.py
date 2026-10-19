@@ -1,35 +1,92 @@
+from collections import defaultdict
+
 import pandas as pd
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
-from .forms import CAMPOS_ARQUIVO, ExecutarCalculoForm
-from .models import ArquivoUpload, ExecucaoCalculo
-from .services import executar_calculo
+from . import services
+from .forms import COMPETENCIA_RE, CompetenciaForm, EnviarArquivoForm, ExecutarCalculoForm
+from .models import ArquivoCompetencia, ExecucaoCalculo
+
+
+def _competencia_escolhida(request) -> str:
+    """Competência escolhida em ?competencia=AAAA-MM; sem ela (ou inválida), a padrão."""
+    form = CompetenciaForm(request.GET)
+    return form.cleaned_data["competencia"] if form.is_valid() else services.competencia_padrao()
+
+
+def _voltar_para(nome_da_url: str, competencia: str):
+    return redirect(f"{reverse(nome_da_url)}?competencia={competencia}")
+
+
+@login_required
+def arquivos(request):
+    """Aba Arquivos: o status atual dos arquivos de uma competência, com envio/substituição de cada um."""
+    if request.method == "POST":
+        form = EnviarArquivoForm(request.POST, request.FILES)
+        competencia_postada = request.POST.get("competencia", "")
+        competencia = competencia_postada if COMPETENCIA_RE.match(competencia_postada) else services.competencia_padrao()
+        if not form.is_valid():
+            messages.error(request, "Escolha o arquivo a enviar.")
+            return _voltar_para("calculo:arquivos", competencia)
+
+        tipo, arquivo = form.cleaned_data["tipo"], form.cleaned_data["arquivo"]
+        rotulo = dict(ArquivoCompetencia._meta.get_field("tipo").choices)[tipo]
+        validacao = services.validar_arquivo(tipo, arquivo, competencia)
+        if validacao["ok"]:
+            registro = services.registrar_arquivo(competencia, tipo, arquivo, request.user, validacao)
+            messages.success(request, f"{rotulo}: arquivo recebido ({registro.resumo}).")
+            for aviso in validacao["avisos"]:
+                messages.warning(request, f"{rotulo}: {aviso}")
+        else:
+            for erro in validacao["erros"]:
+                messages.error(request, f"{rotulo}: arquivo não aceito — {erro}")
+        return _voltar_para("calculo:arquivos", competencia)
+
+    competencia = _competencia_escolhida(request)
+    situacao = services.situacao_da_competencia(competencia)
+    versoes = defaultdict(list)
+    for versao in ArquivoCompetencia.objects.filter(competencia=competencia).select_related("enviado_por"):
+        versoes[versao.tipo].append(versao)
+    linhas = [{"item": item, "anteriores": versoes[item.tipo][1:]} for item in situacao.itens]
+    return render(request, "calculo/arquivos.html", {"competencia": competencia, "situacao": situacao, "linhas": linhas})
 
 
 @login_required
 def executar(request):
+    """Aba Cálculo: calcula a competência com o status atual dos arquivos (não reenvia nada)."""
     if request.method == "POST":
-        form = ExecutarCalculoForm(request.POST, request.FILES)
-        if form.is_valid():
-            execucao = ExecucaoCalculo.objects.create(
-                competencia=form.cleaned_data["competencia"],
-                usar_api_totvs=form.cleaned_data["usar_api_totvs"],
-                iniciado_por=request.user,
-            )
-            for tipo, _rotulo, _obrigatorio in CAMPOS_ARQUIVO:
-                arquivo = form.cleaned_data.get(tipo)
-                if arquivo:
-                    ArquivoUpload.objects.create(execucao=execucao, tipo=tipo, arquivo=arquivo)
+        form = ExecutarCalculoForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, "Competência inválida — use AAAA-MM, ex: 2026-06.")
+            return redirect("calculo:executar")
 
-            # Síncrono: ~660 linhas processam em segundos, dentro de um
-            # timeout de requisição razoável — ver services.TIMEOUT_SEGUNDOS.
-            executar_calculo(execucao)
+        competencia = form.cleaned_data["competencia"]
+        try:
+            execucao = services.iniciar_calculo(competencia, request.user, form.cleaned_data["buscar_totvs"])
+        except services.CalculoBloqueado as bloqueio:
+            for pendencia in bloqueio.pendencias:
+                messages.error(request, pendencia)
+        except services.ErroTotvs as erro:
+            messages.error(request, str(erro))
+        else:
             return redirect("calculo:resultado", pk=execucao.pk)
-    else:
-        form = ExecutarCalculoForm()
+        return _voltar_para("calculo:executar", competencia)
 
-    return render(request, "calculo/executar.html", {"form": form})
+    competencia = _competencia_escolhida(request)
+    situacao = services.situacao_da_competencia(competencia)
+    colaboradores = next(i for i in situacao.itens if i.tipo == "colaboradores")
+    # pendências que o botão do TOTVS não resolve: sem elas, só a base de colaboradores pode faltar
+    outras_pendencias = [i.pendencia for i in situacao.itens if i.pendencia and i.tipo != "colaboradores"]
+    return render(request, "calculo/executar.html", {
+        "competencia": competencia,
+        "situacao": situacao,
+        "colaboradores": colaboradores,
+        "outras_pendencias": outras_pendencias,
+        "form": ExecutarCalculoForm(initial={"competencia": competencia}),
+    })
 
 
 @login_required
@@ -100,15 +157,13 @@ def _ler_relatorio(execucao: ExecucaoCalculo) -> dict | None:
         return None
 
     try:
-        planilhas = pd.read_excel(
-            execucao.arquivo_relatorio.path,
-            sheet_name=["Detalhado", "Resumo por Grupo"],
-        )
+        with pd.ExcelFile(execucao.arquivo_relatorio.path) as xls:
+            detalhado = xls.parse("Detalhado")
+            resumo = xls.parse("Resumo por Grupo")
+            # só existe quando alguém ficou de fora (cargo sem grupo de cálculo) — ver rv/output.py
+            nao_calculados = xls.parse("Não calculados") if "Não calculados" in xls.sheet_names else None
     except Exception:
         return None
-
-    detalhado = planilhas["Detalhado"]
-    resumo = planilhas["Resumo por Grupo"]
 
     processados = int(resumo["Total"].sum())
     elegiveis   = int(resumo["Elegíveis"].sum())
@@ -119,8 +174,25 @@ def _ler_relatorio(execucao: ExecucaoCalculo) -> dict | None:
         "com_premio":   com_premio,
         "sem_premio":   elegiveis - com_premio,
         "inelegiveis":  processados - elegiveis,
+        "nao_calculados": 0 if nao_calculados is None else len(nao_calculados),
         "valor_total":  _fmt_moeda(float(resumo["Valor_Total_RV"].sum())),
     }
+
+    sem_calculo = None
+    if nao_calculados is not None and not nao_calculados.empty:
+        colunas_nc = list(nao_calculados.columns)
+        sem_calculo = {
+            "total": len(nao_calculados),
+            "por_cargo": [
+                {"cargo": cargo, "quantidade": int(qtd)}
+                for cargo, qtd in nao_calculados["Cargo"].value_counts().items()
+            ],
+            "colunas": colunas_nc,
+            "linhas": [
+                [_formatar_celula(col, row[col]) for col in colunas_nc]
+                for _, row in nao_calculados.iterrows()
+            ],
+        }
 
     resumo_grupo = [
         {
@@ -144,6 +216,7 @@ def _ler_relatorio(execucao: ExecucaoCalculo) -> dict | None:
     return {
         "resumo_geral": resumo_geral,
         "resumo_grupo": resumo_grupo,
+        "sem_calculo": sem_calculo,
         "colunas": colunas,
         "linhas": linhas,
     }

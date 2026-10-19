@@ -11,6 +11,14 @@ import sys
 from pathlib import Path
 
 import dj_database_url
+from dotenv import load_dotenv
+
+# Mesmo .env compartilhado do projeto (credenciais TOTVS, ver
+# motor_calculo/rv/totvs_client.py) — python-dotenv procura a partir do
+# diretório atual e sobe até achar, então funciona rodando de portal/ ou da
+# raiz do repositório. Nunca sobrescreve uma env var real já definida no
+# processo/pelo Azure App Service (produção continua controlada só por lá).
+load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 # portal/ é autocontido: motor_calculo/ (config.py, main.py, rv/) mora DENTRO
@@ -32,7 +40,11 @@ SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-somente-para-desenvolvimento-local-nao-usar-em-producao",
 )
-DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+# Default seguro é "0" (produção): se a variável de ambiente for esquecida
+# em algum deploy, o app cai pro lado fechado (sem traceback, sem servir
+# mídia/estático via Django), não pro lado aberto. Em dev local, defina
+# DJANGO_DEBUG=1 no seu .env — ver .env.example.
+DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
 # ---------------------------------------------------------------------------
@@ -124,7 +136,16 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    # CompressedManifestStaticFilesStorage exige um staticfiles.json gerado
+    # por "manage.py collectstatic" — só existe depois do deploy. Em
+    # dev/teste (DEBUG=1) usa o storage simples, sem manifesto, senão
+    # qualquer template com {% static %} quebra localmente e em CI.
+    "staticfiles": {
+        "BACKEND": (
+            "django.contrib.staticfiles.storage.StaticFilesStorage" if DEBUG
+            else "whitenoise.storage.CompressedManifestStaticFilesStorage"
+        ),
+    },
 }
 
 MEDIA_URL = "media/"
@@ -135,6 +156,11 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # ---------------------------------------------------------------------------
 # Autenticação
 # ---------------------------------------------------------------------------
+# Classes CSS das mensagens (django.contrib.messages) = as do base.html, que está em português.
+from django.contrib.messages import constants as _msg
+
+MESSAGE_TAGS = {_msg.SUCCESS: "sucesso", _msg.ERROR: "erro", _msg.WARNING: "aviso", _msg.INFO: "info"}
+
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "calculo:executar"
 LOGOUT_REDIRECT_URL = "login"

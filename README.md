@@ -1,5 +1,7 @@
 # Automação de Remuneração Variável (RV)
 
+[![CI](https://github.com/rennanfoco/remuneracaoVariavel/actions/workflows/ci.yml/badge.svg)](https://github.com/rennanfoco/remuneracaoVariavel/actions/workflows/ci.yml)
+
 Sistema que automatiza o cálculo mensal de Remuneração Variável, substituindo um processo manual que levava cerca de 3 dias úteis por competência. Integra dados do TOTVS RM, Coral, Power BI e da área de Frotas, aplica as regras de premiação vigentes por grupo de cargo e gera o arquivo de importação para a folha de pagamento no TOTVS RM, além de um relatório detalhado para validação.
 
 O repositório tem duas partes, cada uma **autocontida na sua própria pasta** — nenhuma depende de arquivos fora dela:
@@ -61,7 +63,7 @@ Abas do arquivo:
 
 | Aba | Conteúdo |
 |---|---|
-| `Cargos` | Mapeia cada cargo (nome exato do TOTVS) ao seu grupo de cálculo |
+| `Cargos` | Mapeia cada cargo (nome exato do TOTVS) ao seu grupo de cálculo. **Cargo que não estiver aqui não é calculado**: não há parâmetros definidos para ele, então ele fica de fora do TXT e aparece como aviso e na aba "Não calculados" do relatório |
 | `Grupos` | Define, por grupo, se a base do prêmio é o salário (`percentual`) ou um teto fixo em R$ (`teto_fixo`) |
 | `Regras_Calculo` | Faixas de atingimento e percentuais de prêmio por grupo e indicador |
 | `Tetos` | Valor máximo de prêmio em R$ para os grupos de teto fixo |
@@ -110,13 +112,24 @@ python main.py --competencia 2026-05 --input data/input --output data/output
 | Arquivo | Origem | Formato |
 |---|---|---|
 | `colaboradores_rm.csv` (ou API) | TOTVS RM | CSV `;` |
-| `dma-accumulated*.csv` | Coral | CSV `;` |
+| `dma-pro-rata*.csv` | Coral, rateado por dia dentro do mês (pro rata) | CSV |
 | `data*.xlsx` | Power BI (NPS por loja) | Excel |
 | `Preventivas*.xlsx` | Frotas (aba "Análise de Preventivas") | Excel |
 | `Fechamento*.xlsx` | Frotas (Bate Pátio) | Excel |
 | `Nonrev*.xlsx` | Frotas | Excel |
-| `Importação Planilha*.csv` | Coral (meta de faturamento) | CSV `;` |
+| `Base metas*.xlsx` | Controladoria (meta de faturamento por login) | Excel — aba com `Login`, `Centro de Custo`, `DMA` e `Valor` |
 | `Lista de Logins*.xlsx` | Analista (mapeamento login → matrícula) | Excel |
+
+Os formatos antigos continuam aceitos: `dma-accumulated*.csv` (Coral por fechamento) no lugar do pro rata e `Importação Planilha*.csv` no lugar do `Base metas`. Se os dois formatos do Coral estiverem na pasta, vale o pro rata.
+
+### Faturamento, meta e atingimento (pro rata)
+
+- **Faturamento** = soma de `VALOR_VENDIDO_PRO_RATA` por login. O arquivo já rateia cada contrato por dia: cada mês recebe só a parte dos dias que caem nele, inclusive de contratos ainda abertos. Para a loja, o faturamento conta na loja onde a venda foi feita.
+- **Meta** vem do `Base metas` (coluna `Valor`, sem arredondar) e é **proporcional aos dias trabalhados** no mês: dias do RM ÷ 30, mês cheio = 30. Quem trabalhou 15 dias tem metade da meta. Sem dado de dias, vale a meta cheia.
+- **Atingimento da pessoa** = faturamento ÷ meta proporcional. **Atingimento da loja** = faturamento da loja ÷ soma das metas proporcionais dos atendentes dela (a loja de cada meta é a da própria planilha, então quem tem meta e não vendeu nada no mês continua contando).
+- A meta da **regional** continua sendo o valor fixo da aba `Metas_Faturamento_Regional` do `referencias.xlsx`.
+- O prêmio continua proporcional aos dias trabalhados no final do cálculo (`rv/eligibility.py`).
+- Se o arquivo do Coral tiver contratos fora do mês da competência, o cálculo avisa (não bloqueia).
 
 ## Saídas geradas
 
@@ -150,6 +163,18 @@ motor_calculo/
 - `python test_totvs_api.py --mes 05 --ano 2026` — testa a conexão com a API e imprime o retorno bruto
 - `python test_totvs_api.py --mes 05 --ano 2026 --list-cargos` — lista todos os cargos distintos retornados pela API, útil para preencher a aba `Cargos` ao adicionar um cargo novo
 
+## Testes automatizados
+
+O motor de cálculo (`rv/calculators/calculadora.py`, `rv/eligibility.py`, `rv/engine.py`) tem uma suíte de testes unitários que não depende do `referencias.xlsx` real nem de arquivos de entrada — cada teste monta seu próprio cenário controlado. Roda a partir da raiz do repositório:
+
+```bash
+python -m unittest discover -t motor_calculo -s motor_calculo/tests -p "test_*.py" -v
+```
+
+Como `portal/motor_calculo/` é uma cópia própria do motor (ver [Portal Web (V2)](#portal-web-v2)), a mesma suíte é replicada em `portal/motor_calculo/tests/` e roda contra essa cópia com o mesmo comando (trocando `motor_calculo` por `portal/motor_calculo`). Isso também funciona como alarme de sincronia: se uma correção for feita só de um lado, os testes falham para a cópia que ficou desatualizada.
+
+O CI (GitHub Actions, [`.github/workflows/ci.yml`](.github/workflows/ci.yml)) roda essa suíte contra as duas cópias, mais os testes do portal (abaixo), a cada push/PR na `main`.
+
 ## Portal Web (V2)
 
 Além da CLI, o projeto tem um portal Django (pasta [`portal/`](portal/)) com login, upload de arquivos e edição de regras de negócio pela tela em vez de editar o `referencias.xlsx` diretamente.
@@ -174,11 +199,33 @@ python manage.py runserver
 
 Acesse `http://localhost:8000` — login normal do Django em desenvolvimento (em produção, autenticação via Azure AD/Easy Auth, ver `apps/accounts/middleware.py`).
 
+### Testes
+
+```bash
+cd portal
+python manage.py test apps
+```
+
+Cobre permissões das telas (usuário comum x Gestão RV), validação de regra específica por loja, o mecanismo de desfazer/refazer uma importação (`apps/regras/services.py`) e a orquestração de uma execução de cálculo com o subprocess mockado (`apps/calculo/services.py`) — sem depender do motor de cálculo real.
+
 | Rota | O que faz |
 |---|---|
-| `/calculo/` | Rodar cálculo: competência, upload dos 7 arquivos (ou API do TOTVS), download do TXT/relatório |
+| `/calculo/arquivos/` | **Aba Arquivos:** status atual dos arquivos de cada competência; envia/substitui um por vez (validado no envio) |
+| `/calculo/` | **Aba Calcular:** calcula a competência com o status atual dos arquivos, sem reenviar nada; opção de buscar colaboradores no TOTVS |
 | `/calculo/historico/` | Histórico de execuções — auditoria de quem rodou o quê e quando |
 | `/admin/` | Edição de regras de negócio (Cargos, Grupos, Regras_Calculo, Tetos, Metas_Mensais), com histórico de alterações |
+
+### Fluxo mensal no portal
+
+1. **Arquivos** — escolha a competência e envie cada arquivo uma vez. O portal lê o arquivo na hora, com a mesma leitura do cálculo, e recusa o que estiver errado (formato, coluna faltando) ou avisa se parecer de outro mês. Substituir um arquivo guarda a versão anterior.
+2. **Calcular** — escolha a competência e calcule. Nada é reenviado: vale a versão mais recente de cada arquivo. Cada cálculo guarda exatamente quais versões usou, então dá para auditar e reproduzir depois.
+
+Regras do status atual:
+
+- **Colaboradores** são sempre **da competência** (dias trabalhados e lista de ativos mudam todo mês). Vêm do TOTVS ("Buscar colaboradores no TOTVS agora", na aba Calcular) ou de um CSV enviado na aba Arquivos, e vale o que aconteceu por último. Sem base da competência e sem marcar a busca, **o cálculo é bloqueado**.
+- **Lista de logins** muda pouco: se a competência não tem uma, vale a da competência anterior mais recente (a tela avisa qual).
+- Os demais arquivos (Coral, metas, NPS, preventiva, bate pátio) são sempre da própria competência. NONREV é opcional.
+- **Cargo sem grupo de cálculo** (não cadastrado na aba Cargos das regras) **não é calculado**. O aviso aparece já no envio da base de colaboradores e, depois do cálculo, na tela de resultado (com a contagem por cargo) e na aba "Não calculados" do relatório. Para incluir essas pessoas, cadastre o cargo em Admin → Cargos e calcule de novo.
 
 ### Estrutura
 

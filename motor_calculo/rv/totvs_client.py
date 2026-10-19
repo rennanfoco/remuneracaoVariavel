@@ -47,7 +47,8 @@ def buscar_colaboradores(mes: str, ano: str) -> pd.DataFrame:
             "não encontradas. Verifique o arquivo .env."
         )
 
-    from config import CARGOS_GRUPO, TOTVS_COD_COLIGADA
+    from config import TOTVS_COD_COLIGADA
+    from rv.loader import atribuir_grupo_calculo
 
     url = f"{_BASE_URL}/api/framework/v1/consultaSQLServer/RealizaConsulta/API.04/{TOTVS_COD_COLIGADA}/P/"
     params = {"parameters": f"MES={mes};ANO={ano}"}
@@ -81,14 +82,13 @@ def buscar_colaboradores(mes: str, ano: str) -> pd.DataFrame:
         .fillna(30).clip(0, 30).astype(int)
     )
 
-    df["grupo_calculo"] = df["cargo"].map(CARGOS_GRUPO)
-    sem_grupo = df[df["grupo_calculo"].isna()]
-    if not sem_grupo.empty:
-        cargos = sem_grupo["cargo"].unique().tolist()
-        print(
-            f"  [AVISO] Cargos sem grupo_calculo mapeado (receberão 'outros'): {cargos}\n"
-            f"          Adicione esses cargos na aba 'Cargos' do referencias.xlsx."
-        )
-        df["grupo_calculo"] = df["grupo_calculo"].fillna("outros")
+    return atribuir_grupo_calculo(df)
 
-    return df
+
+# Colunas que o motor espera no CSV de colaboradores (rv.loader._proc_colaboradores). grupo_calculo
+# fica de fora de propósito: é recalculado na hora do cálculo, com as regras vigentes naquele momento.
+COLUNAS_CSV = ["matricula", "nome", "cargo", "unidade", "regional", "salario_base", "dias_trabalhados"]
+
+
+def salvar_colaboradores_csv(df: pd.DataFrame, caminho) -> None:
+    df[COLUNAS_CSV].to_csv(caminho, sep=";", index=False, encoding="utf-8-sig")

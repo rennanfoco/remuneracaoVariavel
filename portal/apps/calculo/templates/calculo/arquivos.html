@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Arquivos — Portal RV{% endblock %}
+
+{% block hero %}
+<h1>Arquivos da Competência</h1>
+{% endblock %}
+{% block hero_sub %}
+<p>Envie cada arquivo uma vez. A aba Calcular usa o que estiver aqui — não precisa reenviar para recalcular.</p>
+{% endblock %}
+
+{% block content %}
+<div class="panel">
+    <div class="panel-accent"></div>
+    <form method="get" style="display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap;">
+        <div class="campo" style="margin:0;">
+            <label for="competencia">Competência</label>
+            <input type="month" id="competencia" name="competencia" value="{{ competencia }}" placeholder="AAAA-MM" onchange="this.form.submit()">
+        </div>
+        <button class="btn btn-ghost" type="submit">Ver</button>
+        <a class="btn" href="{% url 'calculo:executar' %}?competencia={{ competencia }}" style="margin-left:auto;">Ir para o cálculo →</a>
+    </form>
+</div>
+
+<div class="panel">
+    <div class="panel-accent"></div>
+    <span class="eyebrow">status atual</span>
+    <h2>{{ competencia }}</h2>
+    <p style="font-size:.85rem;">A versão mais recente de cada arquivo é a que vale. Ao substituir, a anterior fica guardada. Os colaboradores do mês também podem ser buscados direto no TOTVS, na aba Calcular.</p>
+
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr><th>Arquivo</th><th>Status</th><th>Versão atual</th><th>Enviar / substituir</th></tr>
+            </thead>
+            <tbody>
+                {% for linha in linhas %}
+                {% with item=linha.item %}
+                <tr>
+                    <td style="font-weight:700;">
+                        {{ item.rotulo }}
+                        <div style="font-weight:400; font-size:.75rem; color:var(--foco-gray-mid);">{% if item.obrigatorio %}obrigatório{% else %}opcional{% endif %}</div>
+                    </td>
+                    <td>
+                        {% if item.arquivo and item.herdado %}
+                            <span class="chip proc"><span class="led"></span>da competência {{ item.arquivo.competencia }}</span>
+                        {% elif item.arquivo %}
+                            <span class="chip ok"><span class="led"></span>Recebido</span>
+                        {% elif item.obrigatorio %}
+                            <span class="chip erro"><span class="led"></span>Falta</span>
+                        {% else %}
+                            <span style="color:var(--foco-gray-mid); font-size:.85rem;">não enviado</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size:.84rem;">
+                        {% if item.arquivo %}
+                            <div>{{ item.arquivo.nome_original }}</div>
+                            <div style="color:var(--foco-gray-mid);">
+                                {% if item.arquivo.origem == "totvs" %}buscado no TOTVS{% else %}enviado{% endif %}
+                                por {{ item.arquivo.enviado_por }} em {{ item.arquivo.enviado_em|date:"d/m/Y H:i" }}
+                            </div>
+                            {% if item.arquivo.resumo %}<div>{{ item.arquivo.resumo }}</div>{% endif %}
+                            {% for aviso in item.arquivo.lista_de_avisos %}
+                                <div style="color:#9c6b00;">⚠ {{ aviso }}</div>
+                            {% endfor %}
+                            {% if linha.anteriores %}
+                            <details style="margin-top:.4rem;">
+                                <summary style="cursor:pointer;">{{ linha.anteriores|length }} versão(ões) anterior(es)</summary>
+                                {% for anterior in linha.anteriores %}
+                                    <div style="color:var(--foco-gray-mid);">
+                                        {{ anterior.nome_original }} — {{ anterior.enviado_por }}, {{ anterior.enviado_em|date:"d/m/Y H:i" }}
+                                    </div>
+                                {% endfor %}
+                            </details>
+                            {% endif %}
+                        {% else %}
+                            <span style="color:var(--foco-gray-mid);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form method="post" enctype="multipart/form-data" style="display:flex; gap:.5rem; flex-wrap:wrap; align-items:center;">
+                            {% csrf_token %}
+                            <input type="hidden" name="competencia" value="{{ competencia }}">
+                            <input type="hidden" name="tipo" value="{{ item.tipo }}">
+                            <input class="input-file" type="file" name="arquivo" required style="max-width:230px;">
+                            <button class="btn btn-ghost" type="submit">{% if item.arquivo and not item.herdado %}Substituir{% else %}Enviar{% endif %}</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endwith %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

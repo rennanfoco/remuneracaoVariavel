@@ -86,6 +86,7 @@ RENOMEAR_COLUNAS = {
     "pct_preventiva":     "Multiplicador Preventiva",
     "valor_bate_patio":   "Bate Pátio (%)",
     "pct_bate_patio":     "Multiplicador Bate Pátio",
+    "motivo":             "Motivo",
 }
 
 COLUNAS_ORDEM = [
@@ -101,10 +102,16 @@ COLUNAS_ORDEM = [
 ]
 
 
-def gerar_relatorio(df_resultados: pd.DataFrame, competencia: str, output_dir: Path) -> Path:
+def gerar_relatorio(
+    df_resultados: pd.DataFrame,
+    competencia: str,
+    output_dir: Path,
+    nao_calculados: pd.DataFrame | None = None,
+) -> Path:
     """
     Gera Excel detalhado para validação pelo gestor.
-    Inclui todas as linhas com o valor de cada indicador e o multiplicador aplicado.
+    Inclui todas as linhas com o valor de cada indicador e o multiplicador aplicado. Se houver
+    colaboradores que não foram calculados (cargo sem grupo), eles vão na aba "Não calculados".
     """
     df = df_resultados.copy()
 
@@ -132,5 +139,7 @@ def gerar_relatorio(df_resultados: pd.DataFrame, competencia: str, output_dir: P
     with pd.ExcelWriter(caminho, engine="openpyxl") as writer:
         df_out.to_excel(writer, sheet_name="Detalhado", index=False)
         resumo.to_excel(writer, sheet_name="Resumo por Grupo", index=False)
+        if nao_calculados is not None and not nao_calculados.empty:
+            nao_calculados.rename(columns=RENOMEAR_COLUNAS).to_excel(writer, sheet_name="Não calculados", index=False)
 
     return caminho

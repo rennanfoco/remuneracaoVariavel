@@ -3,17 +3,22 @@ Leitura e transformação de todos os arquivos de entrada do processo de RV.
 
 Padrões de nome esperados na pasta de input (suportam glob):
   colaboradores_rm.csv           — extração do TOTVS RM (nome fixo)
-  dma-accumulated*.csv           — dados brutos do Coral (DMA e faturamento são calculados aqui)
+  dma-pro-rata*.csv              — dados brutos do Coral, rateados por dia dentro do mês (pro rata): cada
+                                   contrato entra só com a parte dos dias que caem na competência, inclusive
+                                   contratos ainda abertos. (dma-accumulated*.csv, o formato antigo por
+                                   fechamento, continua aceito.)
   data*.xlsx                     — NPS por atendente (agrega para nível de loja)
   Preventivas*.xlsx              — dados de manutenção preventiva por veículo
   Fechamento*.xlsx               — % conclusão Bate Pátio por loja
-  Importação Planilha*.csv       — meta de faturamento por atendente (Controladoria)
+  Base metas*.xlsx               — meta de faturamento por atendente (Controladoria): aba com Login,
+                                   Centro de Custo, DMA e Valor. (Importação Planilha*.csv, o formato
+                                   antigo, continua aceito.)
   Lista de Logins*.xlsx          — mapeamento Login Coral → Matrícula RM
   nonrev*.xlsx                   — NONREV por loja (Área de Frotas) [opcional: aviso se ausente]
 
 Cálculos realizados aqui:
   DMA = sum(VALOR VENDIDO where PREMIAVEL != 'no') / sum(DIAS where PREMIAVEL != 'no')
-  faturamento_realizado = sum(VALOR VENDIDO) por login
+  faturamento_realizado = sum(VALOR VENDIDO) por login  (no pro rata, a coluna VALOR_VENDIDO_PRO_RATA)
   nps_loja = já vem agregado por Loja na origem — usa o valor direto
   preventiva_pct = campo '% Conformidade' da aba 'Análise de Preventivas' (bloco por loja),
                    já calculado pela área de Frotas — usa o valor direto
@@ -39,11 +44,11 @@ def _normalizar_texto(s) -> str:
 # ---------------------------------------------------------------------------
 PADROES = {
     "colaboradores":    "colaboradores_rm.csv",
-    "coral":            "dma-accumulated*.csv",
+    "coral":            ("dma-pro-rata*.csv", "dma-accumulated*.csv"),
     "nps":              "data*.xlsx",
     "preventiva":       "Preventivas*.xlsx",
     "bate_patio":       "Fechamento*.xlsx",
-    "meta_faturamento": "Importa??o Planilha*.csv",
+    "meta_faturamento": ("Base metas*.xlsx", "Importa??o Planilha*.csv"),
     "mapeamento":       "Lista de Logins*.xlsx",
     "nonrev":           "nonrev*.xlsx",          # opcional
 }
@@ -57,7 +62,20 @@ OBRIGATORIOS = {"colaboradores", "coral", "nps", "preventiva", "bate_patio",
 # Utilitários
 # ---------------------------------------------------------------------------
 
-def _encontrar(input_dir: Path, padrao: str) -> Optional[Path]:
+def _rotulo_padrao(padrao) -> str:
+    return padrao if isinstance(padrao, str) else " ou ".join(padrao)
+
+
+def _encontrar(input_dir: Path, padrao) -> Optional[Path]:
+    """Encontra arquivo pelo padrão glob (ou pelo primeiro de uma lista de padrões que achar algo)."""
+    for p in ((padrao,) if isinstance(padrao, str) else padrao):
+        achado = _encontrar_um(input_dir, p)
+        if achado is not None:
+            return achado
+    return None
+
+
+def _encontrar_um(input_dir: Path, padrao: str) -> Optional[Path]:
     """Encontra arquivo pelo padrão glob. Retorna None se não encontrado."""
     matches = sorted(input_dir.glob(padrao))
     if not matches:
@@ -94,6 +112,82 @@ def _ler_xlsx_aba(path: Path, aba_alvo: str) -> pd.DataFrame:
     return pd.read_excel(path, sheet_name=aba, header=None, dtype=str)
 
 
+def _ler_meta(path: Path) -> pd.DataFrame:
+    """
+    Lê o arquivo de metas. CSV (formato antigo, Importação Planilha) é lido direto;
+    xlsx (Base metas) pode ter várias abas — usa a que tem Login, Centro de Custo e Valor
+    no cabeçalho (nos primeiros 10 registros) e devolve o DataFrame já com esse cabeçalho.
+    """
+    if path.suffix.lower() == ".csv":
+        return _ler_csv(path)
+
+    with pd.ExcelFile(path) as xls:
+        for aba in xls.sheet_names:
+            bruto = pd.read_excel(xls, sheet_name=aba, header=None, dtype=str)
+            for i in range(min(10, len(bruto))):
+                nomes = [_normalizar_texto(v) for v in bruto.iloc[i] if pd.notna(v)]
+                if "login" in nomes and "centro de custo" in nomes and "valor" in nomes:
+                    df = bruto.iloc[i + 1:].reset_index(drop=True)
+                    df.columns = [str(v).strip() if pd.notna(v) else f"_col{j}" for j, v in enumerate(bruto.iloc[i])]
+                    return df
+    raise ValueError(
+        f"Meta Faturamento: não encontrei, em nenhuma aba de '{path.name}', "
+        f"as colunas Login, Centro de Custo e Valor."
+    )
+
+
+# Nomes de coluna do arquivo pro rata -> nomes internos usados pelo cálculo (os mesmos do formato antigo).
+_COLUNAS_CORAL = {
+    "VALOR_VENDIDO_PRO_RATA": "VALOR VENDIDO",
+    "DIAS_NO_PERIODO":        "DIAS",
+}
+
+
+def _padronizar_coral(df: pd.DataFrame) -> pd.DataFrame:
+    """Colunas em maiúsculas e com os nomes internos, aceitando o formato pro rata e o antigo (fechamento)."""
+    df = df.copy()
+    df.columns = [_COLUNAS_CORAL.get(c.strip().upper(), c.strip().upper()) for c in df.columns]
+    return df
+
+
+def _datas(serie: pd.Series) -> pd.Series:
+    """Datas AAAA-MM-DD ou DD/MM/AAAA (com ou sem hora) -> Timestamp; o que não for data vira NaT."""
+    s = serie.astype(str).str.strip()
+    iso = pd.to_datetime(s.str.extract(r"^(\d{4}-\d{2}-\d{2})")[0], format="%Y-%m-%d", errors="coerce")
+    br = pd.to_datetime(s.str.extract(r"^(\d{1,2}/\d{1,2}/\d{4})")[0], format="%d/%m/%Y", errors="coerce")
+    return iso.fillna(br)
+
+
+def verificar_periodo_coral(df: pd.DataFrame, competencia: str) -> list[str]:
+    """
+    Confere se o arquivo do Coral é mesmo da competência: nenhum contrato pode retirar depois do fim
+    do mês nem devolver antes do início dele. Só avisa (quem roda decide) — contratos que cruzam o
+    mês trazem datas de outros meses, mas nunca fora desses limites.
+    """
+    df = _padronizar_coral(df)
+    if "RETIRADA" not in df.columns or "DEVOLUCAO" not in df.columns:
+        return ["Coral: o arquivo não tem as colunas RETIRADA e DEVOLUCAO, então não consegui conferir se ele é do mês da competência."]
+
+    ano, mes = int(competencia[:4]), int(competencia[5:7])
+    inicio = pd.Timestamp(ano, mes, 1)
+    fim = inicio + pd.offsets.MonthEnd(0)
+    retirada_max = _datas(df["RETIRADA"]).max()
+    devolucao_min = _datas(df["DEVOLUCAO"]).min()
+
+    avisos = []
+    if pd.notna(retirada_max) and retirada_max > fim:
+        avisos.append(
+            f"Coral: o arquivo tem retirada em {retirada_max:%d/%m/%Y}, depois do fim da competência {competencia}. "
+            f"Confira se é o arquivo do mês certo."
+        )
+    if pd.notna(devolucao_min) and devolucao_min < inicio:
+        avisos.append(
+            f"Coral: o arquivo tem devolução em {devolucao_min:%d/%m/%Y}, antes do início da competência {competencia}. "
+            f"Confira se é o arquivo do mês certo."
+        )
+    return avisos
+
+
 # ---------------------------------------------------------------------------
 # Transformações por arquivo
 # ---------------------------------------------------------------------------
@@ -116,8 +210,7 @@ def _proc_coral(df: pd.DataFrame) -> pd.DataFrame:
     Tirar a média dos DMAs já calculados por login (média de razões) dá um
     resultado matematicamente diferente e incorreto.
     """
-    df = df.copy()
-    df.columns = [c.strip().upper() for c in df.columns]
+    df = _padronizar_coral(df)
 
     df["VALOR VENDIDO"] = pd.to_numeric(
         df["VALOR VENDIDO"].str.replace(",", "."), errors="coerce"
@@ -164,8 +257,7 @@ def _proc_coral_por_loja(df: pd.DataFrame) -> pd.DataFrame:
     Gestores e Regionais; o faturamento individual do colaborador continua
     somando todas as suas transações independente da loja (ver _proc_coral).
     """
-    df = df.copy()
-    df.columns = [c.strip().upper() for c in df.columns]
+    df = _padronizar_coral(df)
 
     df["VALOR VENDIDO"] = pd.to_numeric(
         df["VALOR VENDIDO"].str.replace(",", "."), errors="coerce"
@@ -293,8 +385,10 @@ def _proc_bate_patio(df: pd.DataFrame) -> pd.DataFrame:
 
 def _proc_meta_faturamento(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Meta de faturamento por login (Controladoria).
-    O arquivo contém uma linha extra de nomes de campo em inglês logo após o header.
+    Meta de faturamento por login (Controladoria), com a loja de cada meta (coluna Loja ou Centro de
+    Custo da própria planilha — não a loja onde o login vendeu, para quem tem meta mas não vendeu
+    nada no mês continuar contando na meta da loja).
+    O arquivo antigo (CSV) contém uma linha extra de nomes de campo em inglês logo após o header.
     """
     df = df.copy()
     df.columns = [c.strip() for c in df.columns]
@@ -308,8 +402,13 @@ def _proc_meta_faturamento(df: pd.DataFrame) -> pd.DataFrame:
         (c for c in df.columns if any(p in c.lower() for p in ("usu", "login", "usuario"))),
         None,
     )
+    # Formato antigo: "Meta de Faturamento". Formato novo (Base metas): "Valor" (meta exata, sem arredondar).
     col_meta = next(
         (c for c in df.columns if "meta" in c.lower() and "fatur" in c.lower()),
+        None,
+    ) or next((c for c in df.columns if c.lower() == "valor"), None)
+    col_loja = next(
+        (c for c in df.columns if c.lower() in ("loja", "centro de custo", "store_id")),
         None,
     )
 
@@ -317,9 +416,14 @@ def _proc_meta_faturamento(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(
             f"Meta Faturamento: não encontrei colunas de login e meta. Disponíveis: {list(df.columns)}"
         )
+    if not col_loja:
+        raise ValueError(
+            f"Meta Faturamento: não encontrei a coluna da loja (Loja ou Centro de Custo). Disponíveis: {list(df.columns)}"
+        )
 
-    result = df[[col_login, col_meta]].copy()
-    result.columns = ["login_coral", "meta_faturamento"]
+    result = df[[col_login, col_loja, col_meta]].copy()
+    result.columns = ["login_coral", "unidade", "meta_faturamento"]
+    result["unidade"]         = result["unidade"].astype(str).str.strip().str.upper()
     result["login_coral"]     = result["login_coral"].str.strip().str.lower()
     result["meta_faturamento"] = pd.to_numeric(
         result["meta_faturamento"].str.replace(",", ".").str.replace(" ", ""),
@@ -416,6 +520,25 @@ def _proc_nonrev(df: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def atribuir_grupo_calculo(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    grupo_calculo de cada colaborador, pelo cargo (aba Cargos do referencias.xlsx).
+
+    Cargo que não está na aba fica SEM grupo — e esse colaborador NÃO é calculado: não há parâmetros
+    definidos para ele e o motor não assume nenhum (antes caía num grupo "outros" genérico). Ele
+    aparece neste aviso e na aba "Não calculados" do relatório.
+    """
+    df["grupo_calculo"] = df["cargo"].map(CARGOS_GRUPO)
+    sem_grupo = df[df["grupo_calculo"].isna()]
+    if not sem_grupo.empty:
+        lista = ", ".join(f"{cargo} ({n})" for cargo, n in sem_grupo["cargo"].value_counts().items())
+        print(
+            f"  [AVISO] {len(sem_grupo)} colaborador(es) com cargo sem grupo de cálculo NÃO serão calculados: {lista}\n"
+            f"          Adicione esses cargos na aba 'Cargos' do referencias.xlsx."
+        )
+    return df
+
+
 def _proc_colaboradores(df: pd.DataFrame) -> pd.DataFrame:
     """Normaliza DataFrame de colaboradores do TOTVS RM."""
     df = df.copy()
@@ -431,27 +554,39 @@ def _proc_colaboradores(df: pd.DataFrame) -> pd.DataFrame:
     df["dias_trabalhados"] = pd.to_numeric(
         df["dias_trabalhados"], errors="coerce"
     ).fillna(30).clip(0, 30).astype(int)
-    # grupo_calculo derivado do cargo via aba Cargos do referencias.xlsx
-    df["grupo_calculo"] = df["cargo"].map(CARGOS_GRUPO)
-    sem_grupo = df[df["grupo_calculo"].isna()]
-    if not sem_grupo.empty:
-        cargos = sem_grupo["cargo"].unique().tolist()
-        print(
-            f"  [AVISO] Cargos sem grupo_calculo mapeado (receberão 'outros'): {cargos}\n"
-            f"          Adicione esses cargos na aba 'Cargos' do referencias.xlsx."
-        )
-        df["grupo_calculo"] = df["grupo_calculo"].fillna("outros")
-
-    return df
+    return atribuir_grupo_calculo(df)
 
 
 # ---------------------------------------------------------------------------
 # Ponto de entrada público
 # ---------------------------------------------------------------------------
 
+def _ler_xlsx_sem_header(path: Path) -> pd.DataFrame:
+    return pd.read_excel(path, header=None, dtype=str)
+
+
+def _ler_preventiva(path: Path) -> pd.DataFrame:
+    return _ler_xlsx_aba(path, "Análise de Preventivas")
+
+
+# chave do arquivo -> (como ler o arquivo bruto, como transformar). É a mesma leitura usada pelo
+# cálculo e pela validação no envio (validar_arquivo.py): um arquivo que passa numa passa na outra.
+PROCESSADORES = {
+    "colaboradores":    (_ler_csv,              _proc_colaboradores),
+    "coral":            (_ler_csv,              _proc_coral),
+    "nps":              (_ler_xlsx_sem_header,  _proc_nps),
+    "preventiva":       (_ler_preventiva,       _proc_preventiva),
+    "bate_patio":       (_ler_xlsx,             _proc_bate_patio),
+    "meta_faturamento": (_ler_meta,             _proc_meta_faturamento),
+    "mapeamento":       (_ler_xlsx,             _proc_mapeamento),
+    "nonrev":           (_ler_xlsx_sem_header,  _proc_nonrev),
+}
+
+
 def carregar_tudo(
     input_dir: Path,
     colaboradores_df: pd.DataFrame = None,
+    competencia: Optional[str] = None,
 ) -> dict[str, pd.DataFrame]:
     """
     Localiza, lê e transforma todos os arquivos de input.
@@ -460,6 +595,7 @@ def carregar_tudo(
 
     colaboradores_df — se fornecido, usa esse DataFrame no lugar de colaboradores_rm.csv
                        (útil quando os dados vêm direto da API do TOTVS RM).
+    competencia      — "AAAA-MM"; se informada, avisa quando o arquivo do Coral não for desse mês.
     """
     encontrados: dict[str, Path] = {}
     ausentes: list[str] = []
@@ -471,9 +607,9 @@ def carregar_tudo(
         path = _encontrar(input_dir, padrao)
         if path is None:
             if chave in obrigat:
-                ausentes.append(f"{padrao}  (obrigatório)")
+                ausentes.append(f"{_rotulo_padrao(padrao)}  (obrigatório)")
             else:
-                print(f"  [AVISO] '{padrao}' não encontrado — grupos que dependem de NONREV receberão 0.")
+                print(f"  [AVISO] '{_rotulo_padrao(padrao)}' não encontrado — grupos que dependem de NONREV receberão 0.")
         else:
             encontrados[chave] = path
             print(f"  {chave:<20} : {path.name}")
@@ -484,23 +620,6 @@ def carregar_tudo(
             + "\n  ".join(ausentes)
         )
 
-    def _ler_xlsx_sem_header(path: Path) -> pd.DataFrame:
-        return pd.read_excel(path, header=None, dtype=str)
-
-    def _ler_preventiva(path: Path) -> pd.DataFrame:
-        return _ler_xlsx_aba(path, "Análise de Preventivas")
-
-    processadores = {
-        "colaboradores":    (_ler_csv,              _proc_colaboradores),
-        "coral":            (_ler_csv,              _proc_coral),
-        "nps":              (_ler_xlsx_sem_header,  _proc_nps),
-        "preventiva":       (_ler_preventiva,       _proc_preventiva),
-        "bate_patio":       (_ler_xlsx,             _proc_bate_patio),
-        "meta_faturamento": (_ler_csv,              _proc_meta_faturamento),
-        "mapeamento":       (_ler_xlsx,             _proc_mapeamento),
-        "nonrev":           (_ler_xlsx_sem_header,  _proc_nonrev),
-    }
-
     data: dict[str, pd.DataFrame] = {}
 
     if colaboradores_df is not None:
@@ -508,13 +627,16 @@ def carregar_tudo(
         print(f"  {'colaboradores':<20} : via API TOTVS RM ({len(colaboradores_df)} registros)")
 
     for chave, path in encontrados.items():
-        leitor, proc = processadores[chave]
+        leitor, proc = PROCESSADORES[chave]
         raw = leitor(path)
         data[chave] = proc(raw)
         if chave == "coral":
             # Faturamento por loja do contrato (não pela loja do colaborador) —
             # usado no cálculo de Líderes, Gestores e Regionais.
             data["coral_por_loja"] = _proc_coral_por_loja(raw)
+            if competencia:
+                for aviso in verificar_periodo_coral(raw, competencia):
+                    print(f"  [AVISO] {aviso}")
 
     # NONREV ausente: DataFrame vazio com colunas mínimas para o engine não quebrar
     if "nonrev" not in data:
