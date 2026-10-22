@@ -58,4 +58,4 @@ jobs:
         working-directory: portal
         env:
           DJANGO_DEBUG: "1"
-        run: python manage.py test apps -v 2
+        run: python manage.py test apps webapp -v 2

@@ -9,15 +9,16 @@ Idempotente: usa update_or_create por chave natural (nome do grupo/cargo,
 combinação grupo+indicador, mes+chave+faixa) — pode ser rodado de novo sem
 duplicar nada.
 
-Nota: importar o módulo config executa a validação própria dele
-(_grupos_sem_modelo) contra o referencias.xlsx PADRÃO do projeto (não
-necessariamente o --arquivo passado aqui) — na prática isso não importa
-porque os dois são o mesmo arquivo no uso normal deste comando.
+Nota: importar o módulo config executa a leitura e a validação própria dele
+(_grupos_sem_modelo) de UM referencias.xlsx. Aqui isso é feito apontando para
+o próprio --arquivo (ver _carregar_config_legado), então importar funciona
+mesmo num clone novo, onde não existe um referencias.xlsx padrão.
 
 Uso:
   python manage.py importar_referencias --arquivo referencias.xlsx
 """
 
+import os
 import uuid
 from decimal import Decimal
 from pathlib import Path
@@ -27,7 +28,6 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from simple_history.utils import update_change_reason
 
-import config as config_legado
 from apps.regras.models import (
     Cargo, FaixaCalculo, Grupo, IndicadorRegra, Loja, MetaFaturamentoRegional,
     MetaMensal, ParametroTOTVS,
@@ -36,6 +36,27 @@ from apps.regras.models import (
 
 def _dec(valor):
     return None if valor is None else Decimal(str(valor))
+
+
+def _carregar_config_legado(caminho: Path):
+    """
+    Importa motor_calculo/config.py apontando para o PRÓPRIO arquivo que está sendo importado.
+
+    O config.py lê um referencias.xlsx já no import (REFERENCIAS_XLSX_PATH, ou o referencias.xlsx ao
+    lado dele) e quebra se esse arquivo não existir — o que acontecia num clone novo, onde ele não é
+    versionado, mesmo com um --arquivo válido na mão ("arquivo não encontrado, rode criar_referencias").
+    Aqui só os _parse_* interessam; o import só precisa passar.
+    """
+    anterior = os.environ.get("REFERENCIAS_XLSX_PATH")
+    os.environ["REFERENCIAS_XLSX_PATH"] = str(caminho.resolve())
+    try:
+        import config
+    finally:
+        if anterior is None:
+            os.environ.pop("REFERENCIAS_XLSX_PATH", None)
+        else:
+            os.environ["REFERENCIAS_XLSX_PATH"] = anterior
+    return config
 
 
 class Command(BaseCommand):
@@ -61,6 +82,7 @@ class Command(BaseCommand):
         if not caminho.exists():
             raise CommandError(f"Arquivo não encontrado: {caminho}")
         self.lote = options.get("lote") or uuid.uuid4().hex
+        config_legado = _carregar_config_legado(caminho)
 
         # Fecha o arquivo explicitamente assim que os dados são extraídos —
         # sem isso, o handle fica aberto (sobretudo no Windows) e quem chamou

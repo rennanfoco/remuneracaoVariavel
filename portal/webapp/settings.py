@@ -40,11 +40,22 @@ SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
     "django-insecure-somente-para-desenvolvimento-local-nao-usar-em-producao",
 )
-# Default seguro é "0" (produção): se a variável de ambiente for esquecida
-# em algum deploy, o app cai pro lado fechado (sem traceback, sem servir
-# mídia/estático via Django), não pro lado aberto. Em dev local, defina
-# DJANGO_DEBUG=1 no seu .env — ver .env.example.
-DEBUG = os.environ.get("DJANGO_DEBUG", "0") == "1"
+def _resolver_debug(env, argv) -> bool:
+    """
+    DJANGO_DEBUG, quando definida, manda (=1 liga, qualquer outro valor desliga). Sem ela, o default é
+    SEGURO (False) — se a variável for esquecida num deploy, o app cai pro lado fechado (sem traceback,
+    sem servir mídia/estático via Django) — EXCETO quando o processo é o servidor de desenvolvimento
+    (`manage.py runserver`) ou os testes (`manage.py test`): produção roda sob gunicorn/WSGI, nunca por
+    esses comandos, e sem essa exceção quem clona o projeto e roda direto toma erro 500 (sem .env,
+    os estáticos de produção exigem collectstatic) e sem nenhuma mensagem no console.
+    """
+    explicito = env.get("DJANGO_DEBUG")
+    if explicito is not None:
+        return explicito == "1"
+    return len(argv) > 1 and argv[1] in ("runserver", "test")
+
+
+DEBUG = _resolver_debug(os.environ, sys.argv)
 ALLOWED_HOSTS = [h.strip() for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",") if h.strip()]
 
 # ---------------------------------------------------------------------------

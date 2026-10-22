@@ -240,15 +240,15 @@ def _parse_grupos_modelo(xls: pd.ExcelFile) -> dict:
 
 def _carregar():
     _exigir_ref()
-    xls              = pd.ExcelFile(_REF)
-    regras           = _parse_regras(xls)
-    cargos           = _parse_cargos(xls)
-    tetos            = _parse_tetos(xls)
-    metas            = _parse_metas(xls)
-    metas_fat_reg    = _parse_metas_faturamento_regional(xls)
-    lojas            = _parse_lojas(xls)
-    totvs            = _parse_totvs(xls)
-    grupos_modelo    = _parse_grupos_modelo(xls)
+    with pd.ExcelFile(_REF) as xls:  # fecha o arquivo (no Windows, aberto, trava a limpeza de pastas temporárias)
+        regras           = _parse_regras(xls)
+        cargos           = _parse_cargos(xls)
+        tetos            = _parse_tetos(xls)
+        metas            = _parse_metas(xls)
+        metas_fat_reg    = _parse_metas_faturamento_regional(xls)
+        lojas            = _parse_lojas(xls)
+        totvs            = _parse_totvs(xls)
+        grupos_modelo    = _parse_grupos_modelo(xls)
     return regras, cargos, tetos, metas, metas_fat_reg, lojas, totvs, grupos_modelo
 
 

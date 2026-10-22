@@ -186,11 +186,14 @@ Além da CLI, o projeto tem um portal Django (pasta [`portal/`](portal/)) com lo
 ### Rodando localmente
 
 ```bash
+python -m venv venv
+venv\Scripts\activate                    # Windows  (Linux/Mac: source venv/bin/activate)
 pip install -r requirements.txt          # já inclui Django e dependências do portal
 
 cd portal
 python manage.py migrate                  # cria o banco local (SQLite)
-python manage.py importar_referencias --arquivo motor_calculo/referencias.xlsx   # migração one-time
+python motor_calculo/criar_referencias.py # cria o referencias.xlsx base (não é versionado, ver "Regras de negócio")
+python manage.py importar_referencias --arquivo motor_calculo/referencias.xlsx   # carrega as regras no banco
 python manage.py bootstrap_grupos          # cria o grupo de permissão "Gestao RV"
 python manage.py createsuperuser
 
@@ -199,11 +202,23 @@ python manage.py runserver
 
 Acesse `http://localhost:8000` — login normal do Django em desenvolvimento (em produção, autenticação via Azure AD/Easy Auth, ver `apps/accounts/middleware.py`).
 
+Recebeu um `referencias.xlsx` de alguém da equipe (por exemplo, o exportado pelo portal em **Regras → Exportar planilha**)? Pule o `criar_referencias.py` e importe direto, de onde o arquivo estiver:
+
+```bash
+python manage.py importar_referencias --arquivo C:/caminho/do/referencias_exportado.xlsx
+```
+
+Também dá para importar pela tela (**Regras → Importar planilha**, logado como superusuário ou membro do grupo Gestao RV). O arquivo de regras é o próprio arquivo informado: não precisa existir nenhum `referencias.xlsx` na pasta `motor_calculo/`.
+
+Não precisa de `.env` para rodar o portal localmente: o `runserver` e os testes ligam o modo de desenvolvimento (`DEBUG`) sozinhos. O `.env` (copie de `.env.example`) só é necessário para as credenciais do TOTVS e para mudar o padrão. Em produção, o servidor roda sob gunicorn, onde `DEBUG` vem **desligado** se a variável `DJANGO_DEBUG` não for definida, de propósito.
+
+Se uma página der erro 500 sem mostrar nada no console, rode com `DJANGO_DEBUG=1` para ver o erro completo.
+
 ### Testes
 
 ```bash
 cd portal
-python manage.py test apps
+python manage.py test apps webapp
 ```
 
 Cobre permissões das telas (usuário comum x Gestão RV), validação de regra específica por loja, o mecanismo de desfazer/refazer uma importação (`apps/regras/services.py`) e a orquestração de uma execução de cálculo com o subprocess mockado (`apps/calculo/services.py`) — sem depender do motor de cálculo real.

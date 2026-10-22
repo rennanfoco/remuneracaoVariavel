@@ -5,15 +5,23 @@ desfazer/refazer uma importação inteira (services.reverter_importacao /
 reaplicar_importacao), que é o ponto mais novo e mais arriscado do app.
 """
 
+import io
+import os
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
 from django.conf import settings
 from django.contrib.auth.models import Group, User
 from django.core.exceptions import ValidationError
+from django.core.management import call_command
 from django.test import TestCase
 from django.urls import reverse
 from simple_history.utils import update_change_reason
 
 from . import services
-from .models import Grupo, ImportacaoReferencias, IndicadorRegra, Loja
+from .models import Cargo, FaixaCalculo, Grupo, ImportacaoReferencias, IndicadorRegra, Loja
 
 
 class TestValidacaoIndicadorRegra(TestCase):
@@ -172,3 +180,58 @@ class TestReverterEReaplicarImportacao(TestCase):
         avisos = services.reverter_importacao(importacao, self.usuario)
         self.assertEqual(avisos, ["Esta importação já está revertida."])
         self.assertEqual(importacao.status, "revertida")
+
+
+class TestImportarReferenciasDeQualquerLugar(TestCase):
+    """
+    Importar um referencias.xlsx recebido de outra pessoa (ex.: exportado pelo portal) tem que funcionar
+    num clone novo do projeto, onde NÃO existe um referencias.xlsx padrão (ele não é versionado). Antes,
+    o comando carregava o config.py do motor, que exigia esse arquivo padrão e mandava "rodar
+    criar_referencias" mesmo com o --arquivo certo na mão.
+    """
+
+    def setUp(self):
+        grupo = Grupo.objects.create(nome="atendente", modelo="percentual")
+        Cargo.objects.create(nome="ATENDENTE I", grupo=grupo)
+        Loja.objects.create(unidade="SAO10", regional="SUDESTE")
+        regra = IndicadorRegra.objects.create(grupo=grupo, indicador="dma")
+        FaixaCalculo.objects.create(indicador_regra=regra, faixa=1, valor_min=38, valor_max=40, pct="0.15")
+
+    def _exportar_e_zerar_o_banco(self, pasta):
+        caminho = Path(pasta) / "recebido.xlsx"
+        call_command("exportar_referencias", saida=str(caminho), stdout=io.StringIO())
+        FaixaCalculo.objects.all().delete()
+        IndicadorRegra.objects.all().delete()
+        Cargo.objects.all().delete()
+        Loja.objects.all().delete()
+        Grupo.objects.all().delete()
+        return caminho
+
+    def test_importa_o_proprio_arquivo_informado_sem_depender_de_um_padrao(self):
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as pasta:
+            caminho = self._exportar_e_zerar_o_banco(pasta)
+
+            with patch.dict(sys.modules):
+                sys.modules.pop("config", None)  # import novo, como num processo recém-aberto
+                call_command("importar_referencias", arquivo=str(caminho), stdout=io.StringIO())
+                # o config.py do motor foi carregado a partir do arquivo importado, não de um padrão
+                self.assertEqual(Path(sys.modules["config"]._REF).resolve(), caminho.resolve())
+
+        self.assertEqual(Grupo.objects.get().nome, "atendente")
+        self.assertEqual(Cargo.objects.get().nome, "ATENDENTE I")
+        self.assertEqual(Loja.objects.get().unidade, "SAO10")
+        self.assertEqual(str(FaixaCalculo.objects.get().pct), "0.1500")
+
+    def test_nao_deixa_a_variavel_de_ambiente_do_motor_vazar(self):
+        antes = os.environ.get("REFERENCIAS_XLSX_PATH")
+        with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as pasta:
+            caminho = self._exportar_e_zerar_o_banco(pasta)
+            with patch.dict(sys.modules):
+                sys.modules.pop("config", None)
+                call_command("importar_referencias", arquivo=str(caminho), stdout=io.StringIO())
+        self.assertEqual(os.environ.get("REFERENCIAS_XLSX_PATH"), antes)
+
+    def test_arquivo_inexistente_continua_dando_erro_claro(self):
+        from django.core.management.base import CommandError
+        with self.assertRaises(CommandError):
+            call_command("importar_referencias", arquivo="nao_existe.xlsx", stdout=io.StringIO())

@@ -10,7 +10,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-OUTPUT = Path("referencias.xlsx")
+OUTPUT = Path(__file__).parent / "referencias.xlsx"  # ao lado do script, de qualquer pasta que se rode
 
 
 def _estilizar_cabecalho(ws, n_cols):
